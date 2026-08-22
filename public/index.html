@@ -135,6 +135,24 @@
   .bubble{padding:12px 15px;border-radius:10px;font-size:14.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-width:100%;}
   .row.user .bubble{background:var(--amber-dim);color:#fff2dd;border-bottom-right-radius:3px;}
   .row.assistant .bubble{background:var(--panel-2);border:1px solid var(--border);border-bottom-left-radius:3px;}
+  .bubble.markdown{white-space:normal;}
+  .markdown p{margin:0 0 12px;}.markdown p:last-child{margin-bottom:0;}
+  .markdown h1,.markdown h2,.markdown h3{font-family:var(--mono);margin:14px 0 8px;line-height:1.35;}
+  .markdown h1{font-size:18px;}.markdown h2{font-size:16px;}.markdown h3{font-size:14px;}
+  .markdown ul,.markdown ol{margin:8px 0 12px;padding-left:22px;}.markdown li{margin:3px 0;}
+  .markdown blockquote{margin:10px 0;padding:7px 12px;border-left:3px solid var(--amber);color:var(--muted);background:rgba(240,169,59,.06);}
+  .markdown code{font:12px var(--mono);background:rgba(127,127,127,.18);padding:2px 5px;border-radius:4px;}
+  .code-block{margin:12px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#101216;}
+  :root[data-theme="light"] .code-block{background:#292722;}
+  .code-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--border);color:var(--muted);font:10px var(--mono);}
+  .copy-code{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:4px 8px;font:10px var(--mono);cursor:pointer;}
+  .copy-code:hover{border-color:var(--amber);color:var(--amber);}
+  .code-block pre{margin:0;padding:12px;overflow:auto;color:#f4e5c7;font:12px/1.65 var(--mono);white-space:pre;}
+  .markdown-table-wrap{overflow-x:auto;margin:12px 0;border:1px solid var(--border);border-radius:8px;}
+  .markdown table{width:100%;min-width:420px;border-collapse:collapse;font-size:13px;}
+  .markdown th,.markdown td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top;}
+  .markdown th{background:var(--panel-3);color:var(--amber);font:600 11px var(--mono);white-space:nowrap;}
+  .markdown tr:last-child td{border-bottom:0;}
   .row.system .bubble{background:transparent;color:var(--muted);font-family:var(--mono);font-size:11px;text-align:center;}
   .msg-foot{display:flex;gap:10px;align-items:center;margin-top:6px;font-family:var(--mono);font-size:10.5px;color:var(--muted);}
   .msg-foot a{color:var(--amber);text-decoration:none;cursor:pointer;}
@@ -346,12 +364,66 @@ fileInput.addEventListener('change', () => {
 });
 
 // ===== Chat bubbles =====
+const copyTexts = new Map();
+let nextCodeId = 0;
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+}
+
+function renderInline(value) {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+}
+
+function renderMarkdown(source) {
+  const codeBlocks = [];
+  const protectedSource = String(source ?? '').replace(/```([^\n`]*)\n?([\s\S]*?)```/g, (_, language, code) => {
+    const id = `code-${nextCodeId++}`;
+    copyTexts.set(id, code.replace(/\n$/, ''));
+    codeBlocks.push({ id, language: language.trim() || 'code', code: code.replace(/\n$/, '') });
+    return `\n@@${id}@@\n`;
+  });
+  const lines = protectedSource.split(/\r?\n/);
+  const html = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const codeMatch = line.match(/^@@(code-\d+)@@$/);
+    if (codeMatch) {
+      const block = codeBlocks.find(item => item.id === codeMatch[1]);
+      html.push(`<div class="code-block"><div class="code-head"><span>${escapeHtml(block.language)}</span><button class="copy-code" type="button" data-copy-code="${block.id}">Copy</button></div><pre><code>${escapeHtml(block.code)}</code></pre></div>`);
+      continue;
+    }
+    if (!line.trim()) continue;
+    if (index + 1 < lines.length && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])) {
+      const cells = text => text.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
+      const headers = cells(line);
+      index += 2;
+      const rows = [];
+      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) { rows.push(cells(lines[index])); index += 1; }
+      index -= 1;
+      html.push(`<div class="markdown-table-wrap"><table><thead><tr>${headers.map(cell => `<th>${renderInline(cell)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${headers.map((_, cellIndex) => `<td>${renderInline(row[cellIndex] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+      continue;
+    }
+    const heading = line.match(/^\s*(#{1,3})\s+(.+)$/);
+    if (heading) { html.push(`<h${heading[1].length}>${renderInline(heading[2])}</h${heading[1].length}>`); continue; }
+    if (/^\s*[-*+]\s+/.test(line)) { html.push(`<ul><li>${renderInline(line.replace(/^\s*[-*+]\s+/, ''))}</li></ul>`); continue; }
+    if (/^\s*\d+[.)]\s+/.test(line)) { html.push(`<ol><li>${renderInline(line.replace(/^\s*\d+[.)]\s+/, ''))}</li></ol>`); continue; }
+    if (/^\s*>\s?/.test(line)) { html.push(`<blockquote>${renderInline(line.replace(/^\s*>\s?/, ''))}</blockquote>`); continue; }
+    html.push(`<p>${renderInline(line)}</p>`);
+  }
+  return html.join('');
+}
+
 function addBubble(role, text, footHtml) {
   const row = document.createElement('div');
   row.className = 'row ' + role;
   const bubble = document.createElement('div');
-  bubble.className = 'bubble';
-  bubble.textContent = text;
+  bubble.className = role === 'assistant' ? 'bubble markdown' : 'bubble';
+  bubble.innerHTML = role === 'assistant' ? renderMarkdown(text) : escapeHtml(text);
   row.appendChild(bubble);
   if (footHtml) {
     const foot = document.createElement('div');
@@ -363,6 +435,20 @@ function addBubble(role, text, footHtml) {
   chatScroll.scrollTop = chatScroll.scrollHeight;
   return row;
 }
+
+chatScroll.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-copy-code]');
+  if (!button) return;
+  const text = copyTexts.get(button.dataset.copyCode);
+  if (text === undefined) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = 'Copied';
+    setTimeout(() => { button.textContent = 'Copy'; }, 1400);
+  } catch (error) {
+    button.textContent = 'Copy failed';
+  }
+});
 
 function addTypingIndicator() {
   const row = document.createElement('div');
@@ -385,7 +471,7 @@ function typewriterReveal(bubbleEl, text, done) {
     i += speed;
     bubbleEl.textContent = text.slice(0, i);
     chatScroll.scrollTop = chatScroll.scrollHeight;
-    if (i >= text.length) { clearInterval(timer); bubbleEl.textContent = text; if (done) done(); }
+    if (i >= text.length) { clearInterval(timer); bubbleEl.innerHTML = renderMarkdown(text); if (done) done(); }
   }, 16);
 }
 
