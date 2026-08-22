@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nong Bojo Ai — Admin</title>
+  <style>
+    :root{--bg:#14161b;--panel:#1b1e25;--panel2:#20232b;--border:#2b2f3a;--text:#ece9e1;--muted:#8a8f9c;--amber:#f0a93b;--red:#e85d4c}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,sans-serif}.wrap{max-width:1200px;margin:auto;padding:24px}h1{font:600 18px monospace;margin:0 0 8px}.sub{color:var(--muted);margin-bottom:18px}.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}input,button{border:1px solid var(--border);border-radius:6px;padding:9px 10px;background:var(--panel2);color:var(--text)}input{min-width:280px}button{cursor:pointer;background:var(--amber);color:#1a1300;font-weight:700}.status{font-family:monospace;color:var(--muted);margin:8px 0}.table{overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--panel)}table{width:100%;border-collapse:collapse;font-family:monospace;font-size:12px}th,td{padding:10px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}th{color:var(--amber);white-space:nowrap}td{max-width:260px;word-break:break-word}.warning{color:#ffbd75}.error{color:#ff9c91}.info{color:#c9ced8}a{color:var(--amber)}
+  </style>
+</head>
+<body><main class="wrap">
+  <h1>🛡️ Admin menu</h1><div class="sub">Live audit log — refresh every 3 seconds. Do not enter an admin key on an untrusted device.</div>
+  <div class="bar"><a href="/index.html">← กลับหน้าแชท</a></div>
+  <div class="bar"><input id="adminKey" type="password" autocomplete="off" placeholder="Admin key"><button id="connect">เปิด Admin logs</button><button id="clear">ล้าง key</button></div>
+  <div id="status" class="status">กรอก Admin key เพื่อดู log</div>
+  <h2 style="font:600 15px monospace;margin:26px 0 10px">👥 Users & Tier</h2><div class="bar"><button id="loadUsers">ดูผู้ใช้ / จัดการ Tier</button></div><div class="table"><table><thead><tr><th>ผู้ใช้</th><th>Tier ปัจจุบัน</th><th>สมัครเมื่อ</th><th>ตั้ง Tier</th></tr></thead><tbody id="accountRows"><tr><td colspan="4" class="info">กด “ดูผู้ใช้ / จัดการ Tier”</td></tr></tbody></table></div>
+  <h2 style="font:600 15px monospace;margin:26px 0 10px">📋 Live audit log</h2><div class="table"><table><thead><tr><th>เวลา</th><th>เหตุการณ์</th><th>ผู้ใช้</th><th>IP</th><th>HTTP</th><th>รายละเอียด</th></tr></thead><tbody id="rows"></tbody></table></div>
+</main><script>
+const keyInput=document.getElementById('adminKey'), statusEl=document.getElementById('status'), rows=document.getElementById('rows');
+const username=localStorage.getItem('claudeProxyUsername')||''; let newestId=0, timer=null;
+keyInput.value=sessionStorage.getItem('claudeProxyAdminKey')||'';
+function escapeHtml(value){const d=document.createElement('div');d.textContent=String(value??'');return d.innerHTML}
+function headers(){return {'x-admin-key':keyInput.value,'x-admin-username':username}}
+function render(log){newestId=Math.max(newestId,log.id);const tr=document.createElement('tr');tr.innerHTML=`<td>${escapeHtml(new Date(log.createdAt).toLocaleString())}</td><td class="${escapeHtml(log.severity)}">${escapeHtml(log.eventType)}</td><td>${escapeHtml(log.username||'-')}</td><td>${escapeHtml(log.ipAddress||'-')}</td><td>${escapeHtml([log.method,log.path,log.statusCode].filter(Boolean).join(' '))}</td><td>${escapeHtml(JSON.stringify(log.metadata||{}))}</td>`;rows.append(tr)}
+async function load(initial=false){const url='/admin/audit-logs?limit=100'+(initial?'':'&afterId='+newestId);const res=await fetch(url,{headers:headers()});if(!res.ok)throw new Error(res.status===403?'Admin key ไม่ถูกต้อง':'โหลด log ไม่สำเร็จ');const data=await res.json();if(initial)rows.innerHTML='';[...data.logs].reverse().forEach(render);statusEl.textContent='เชื่อมต่อแล้ว · log ใหม่จะอัปเดตอัตโนมัติ'}
+async function connect(){if(!keyInput.value){statusEl.textContent='กรอก Admin key ก่อน';return}sessionStorage.setItem('claudeProxyAdminKey',keyInput.value);newestId=0;try{await load(true);clearInterval(timer);timer=setInterval(()=>load().catch(e=>statusEl.textContent=e.message),3000)}catch(e){statusEl.textContent=e.message}}
+document.getElementById('connect').onclick=connect;document.getElementById('clear').onclick=()=>{sessionStorage.removeItem('claudeProxyAdminKey');keyInput.value='';rows.innerHTML='';clearInterval(timer);statusEl.textContent='ล้าง key แล้ว'};
+async function loadUsers(){const body=document.getElementById('accountRows');const res=await fetch('/admin/accounts',{headers:headers()});if(!res.ok){statusEl.textContent='เปิดรายชื่อผู้ใช้ไม่ได้: Admin key ไม่ถูกต้อง';return}const data=await res.json();body.innerHTML='';data.accounts.forEach(a=>{const tr=document.createElement('tr');tr.innerHTML=`<td>${escapeHtml(a.name)}<br><small>${escapeHtml(a.apiKey.slice(0,12))}…</small></td><td><b>${escapeHtml(a.tier.toUpperCase())}</b></td><td>${escapeHtml(new Date(a.createdAt).toLocaleString())}</td><td><select data-key="${escapeHtml(a.apiKey)}"><option value="free">Free</option><option value="plus">Plus</option><option value="max">Max</option></select> <button data-save="${escapeHtml(a.apiKey)}">บันทึก</button></td>`;tr.querySelector('select').value=a.tier;body.append(tr)});body.querySelectorAll('[data-save]').forEach(btn=>btn.onclick=async()=>{const key=btn.dataset.save,tier=btn.parentElement.querySelector('select').value;const r=await fetch('/admin/accounts/'+encodeURIComponent(key)+'/tier',{method:'PATCH',headers:{...headers(),'Content-Type':'application/json'},body:JSON.stringify({tier})});if(!r.ok){statusEl.textContent='เปลี่ยน Tier ไม่สำเร็จ';return}statusEl.textContent='อัปเดต Tier สำเร็จ';loadUsers()})}
+document.getElementById('loadUsers').onclick=loadUsers;
+</script></body></html>

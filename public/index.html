@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nong Bojo Ai — Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14161B; --panel:#1B1E25; --panel-2:#20232B; --panel-3:#262A33;
+    --border:#2B2F3A; --text:#ECE9E1; --muted:#8A8F9C;
+    --amber:#F0A93B; --amber-dim:#8a6a2c;
+    --red:#E85D4C; --green:#5FBF87;
+    --mono:'IBM Plex Mono', monospace;
+    --sans:'IBM Plex Sans Thai','IBM Plex Mono',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{height:100vh;height:100dvh;overflow:hidden;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+  .app{display:grid;grid-template-columns:250px 1fr;height:100vh;height:100dvh;min-height:0;}
+  @media (max-width: 800px){ .app{grid-template-columns:0 1fr;} .sidebar{display:none;} }
+
+  /* ===== Sidebar ===== */
+  .sidebar{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar-head{padding:16px;border-bottom:1px solid var(--border);}
+  .brand{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);}
+  .brand span{font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;}
+  .newchat{
+    width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    font-family:var(--mono);font-size:12px;padding:9px;border-radius:7px;cursor:pointer;text-align:left;
+  }
+  .newchat:hover{border-color:var(--amber);color:var(--amber);}
+
+  .userinfo{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+  .userinfo .avatar{
+    width:26px;height:26px;border-radius:50%;background:var(--panel-3);color:var(--amber);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;
+  }
+  .userinfo .uname{font-family:var(--mono);font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  .convlist{flex:1;overflow-y:auto;padding:8px;}
+  .convitem{
+    padding:9px 10px;border-radius:7px;cursor:pointer;margin-bottom:3px;
+    font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:6px;
+  }
+  .convitem:hover{background:var(--panel-2);color:var(--text);}
+  .convitem.active{background:var(--panel-3);color:var(--amber);}
+  .convitem .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .convitem .x{opacity:0;font-size:11px;color:var(--muted);}
+  .convitem:hover .x{opacity:1;}
+  .convitem .x:hover{color:var(--red);}
+  .empty-convs{color:var(--muted);font-family:var(--mono);font-size:11px;padding:10px;}
+
+  .navmenu{padding:8px;border-top:1px solid var(--border);}
+  .navlink{
+    display:flex;align-items:center;gap:8px;width:100%;background:transparent;border:none;color:var(--muted);
+    font-family:var(--mono);font-size:12px;padding:9px 10px;border-radius:7px;cursor:pointer;text-align:left;
+    text-decoration:none;
+  }
+  .navlink:hover{background:var(--panel-2);color:var(--text);}
+  .navlink.active{background:var(--panel-3);color:var(--amber);}
+
+  /* ===== Center: chat ===== */
+  .center{display:flex;flex-direction:column;border-right:1px solid var(--border);min-width:0;min-height:0;}
+  .toolbar{
+    flex:0 0 auto;
+    display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);
+    flex-wrap:wrap;background:linear-gradient(180deg, var(--panel), var(--bg));
+  }
+  select{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    font-family:var(--mono);font-size:12px;padding:6px 9px;border-radius:6px;
+  }
+  .limit-banner{
+    display:none;margin:0 20px;padding:10px 14px;border-radius:8px;
+    background:rgba(232,93,76,0.12);border:1px solid var(--red);color:#ffb3a8;
+    font-family:var(--mono);font-size:12px;
+  }
+  .limit-banner.show{display:block;}
+
+  .chat-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:22px 24px;display:flex;flex-direction:column;gap:16px;}
+  .row{display:flex;flex-direction:column;max-width:78%;min-width:0;}
+  .row.user{align-self:flex-end;align-items:flex-end;}
+  .row.assistant{align-self:flex-start;align-items:flex-start;}
+  .bubble{padding:12px 15px;border-radius:10px;font-size:14.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-width:100%;}
+  .row.user .bubble{background:var(--amber-dim);color:#fff2dd;border-bottom-right-radius:3px;}
+  .row.assistant .bubble{background:var(--panel-2);border:1px solid var(--border);border-bottom-left-radius:3px;}
+  .row.system .bubble{background:transparent;color:var(--muted);font-family:var(--mono);font-size:11px;text-align:center;}
+  .msg-foot{display:flex;gap:10px;align-items:center;margin-top:6px;font-family:var(--mono);font-size:10.5px;color:var(--muted);}
+  .msg-foot a{color:var(--amber);text-decoration:none;cursor:pointer;}
+  .msg-foot a:hover{text-decoration:underline;}
+
+  /* typing animation */
+  .typing{display:flex;gap:4px;padding:14px 15px;}
+  .typing span{width:6px;height:6px;border-radius:50%;background:var(--amber);opacity:0.4;animation:bounce 1.1s infinite ease-in-out;}
+  .typing span:nth-child(2){animation-delay:0.15s;}
+  .typing span:nth-child(3){animation-delay:0.3s;}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:0.4;}30%{transform:translateY(-5px);opacity:1;}}
+
+  .composer{flex:0 0 auto;border-top:1px solid var(--border);padding:14px 20px;background:var(--panel);}
+  .composer-box{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px;}
+  textarea{
+    width:100%;background:transparent;border:none;color:var(--text);font-family:var(--sans);
+    font-size:14px;resize:none;min-height:44px;max-height:160px;outline:none;
+  }
+  .composer-row{display:flex;align-items:center;gap:9px;margin-top:8px;flex-wrap:wrap;}
+  .filebtn{
+    font-family:var(--mono);font-size:11px;color:var(--muted);border:1px dashed var(--border);
+    padding:6px 11px;border-radius:6px;cursor:pointer;white-space:nowrap;
+  }
+  .filebtn:hover{border-color:var(--amber);color:var(--amber);}
+  #fileInput{display:none;}
+  .filelist{font-family:var(--mono);font-size:10.5px;color:var(--amber);}
+  .sendbtn{
+    margin-left:auto;background:var(--amber);color:#1a1300;border:none;font-family:var(--mono);
+    font-weight:700;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;
+    padding:9px 20px;border-radius:6px;cursor:pointer;
+  }
+  .sendbtn:hover{filter:brightness(1.08);}
+  .sendbtn:disabled{opacity:0.45;cursor:not-allowed;}
+  input[type=number]{background:var(--panel-2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 8px;border-radius:6px;width:70px;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR: conversation history -->
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <div class="brand"><span class="dot"></span><span>Nong Bojo Ai</span></div>
+      <button class="newchat" id="newChatBtn">+ แชทใหม่</button>
+    </div>
+    <div class="userinfo">
+      <div class="avatar" id="userAvatar">?</div>
+      <div class="uname" id="userName">…</div>
+    </div>
+    <input id="apiKey" type="hidden" value="" />
+    <div class="convlist" id="convList">
+      <div class="empty-convs">ยังไม่มีแชท</div>
+    </div>
+    <div class="navmenu">
+      <a class="navlink active" href="/index.html">💬 แชท</a>
+      <a class="navlink" href="/usage.html">📊 การใช้งาน / งบประมาณ</a>
+      <a class="navlink" href="/profile.html">👤 Profile & Plans</a>
+      <a class="navlink" href="/admin.html">🛡️ Admin menu</a>
+      <a class="navlink" href="#" id="logoutLink">🚪 ออกจากระบบ</a>
+    </div>
+  </div>
+
+  <!-- CENTER: chat -->
+  <div class="center">
+    <div class="toolbar">
+      <select id="providerSelect"></select>
+      <select id="modelSelect"></select>
+      <label style="font-family:var(--mono);font-size:11px;color:var(--muted);">max_tokens</label>
+      <input id="maxTokens" type="number" value="1024" min="16" max="8192" />
+    </div>
+    <div class="limit-banner" id="limitBanner"></div>
+
+    <div class="chat-scroll" id="chatScroll">
+      <div class="row system"><div class="bubble">เริ่มแชทใหม่ หรือเลือกแชทเก่าจากด้านซ้าย — เลือกโมเดลได้จากด้านบน แนบไฟล์/รูปได้เลย</div></div>
+    </div>
+
+    <div class="composer">
+      <div class="composer-box">
+        <textarea id="message" placeholder="พิมพ์ข้อความ... (Enter เพื่อส่ง, Shift+Enter ขึ้นบรรทัดใหม่)"></textarea>
+        <div class="composer-row">
+          <label class="filebtn" for="fileInput">📎 แนบไฟล์/รูป</label>
+          <input id="fileInput" type="file" multiple accept="image/*,.pdf,.txt,.csv" />
+          <span class="filelist" id="fileList"></span>
+          <button class="sendbtn" id="sendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let PROVIDERS = {};
+let currentConversationId = null;
+let accountTier = 'free';
+
+const apiKeyInput = document.getElementById('apiKey');
+const providerSelect = document.getElementById('providerSelect');
+const modelSelect = document.getElementById('modelSelect');
+const chatScroll = document.getElementById('chatScroll');
+const fileInput = document.getElementById('fileInput');
+const fileList = document.getElementById('fileList');
+const sendBtn = document.getElementById('sendBtn');
+const limitBanner = document.getElementById('limitBanner');
+
+function hdr() { return { 'x-api-key': apiKeyInput.value.trim() }; }
+
+// ===== Auth guard: ต้อง login ก่อนถึงจะใช้หน้าแชทได้ =====
+// x-api-key ไม่แสดงในหน้าเว็บอีกต่อไป (ป้องกันหลุด/โดนแอบดูจอ) ระบบดึงมาจาก localStorage
+// ที่ตั้งให้อัตโนมัติตอน login/สมัครสมาชิกที่ /login.html เท่านั้น
+const savedKey = localStorage.getItem('claudeProxyApiKey');
+const savedUsername = localStorage.getItem('claudeProxyUsername');
+if (!savedKey) {
+  window.location.href = '/login.html';
+}
+apiKeyInput.value = savedKey || '';
+document.getElementById('userName').textContent = savedUsername || 'ผู้ใช้';
+document.getElementById('userAvatar').textContent = (savedUsername || '?').slice(0, 1).toUpperCase();
+
+document.getElementById('logoutLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  localStorage.removeItem('claudeProxyApiKey');
+  localStorage.removeItem('claudeProxyUsername');
+  window.location.href = '/login.html';
+});
+
+// JavaScript can only deter and report browser shortcuts; it cannot block DevTools.
+let securityNoticeShown = false;
+function reportSecurityEvent(eventType) {
+  if (securityNoticeShown) return;
+  securityNoticeShown = true;
+  fetch('/v1/security/client-event', {
+    method: 'POST', headers: { ...hdr(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eventType }),
+  }).catch(() => {});
+  alert('คำเตือน: การเข้าถึงหรือแก้ไขข้อมูล/ระบบโดยไม่ได้รับอนุญาตอาจผิดกฎหมาย และเหตุการณ์นี้อาจถูกบันทึกไว้');
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key.toUpperCase()))) reportSecurityEvent('devtools_shortcut');
+});
+document.addEventListener('contextmenu', () => reportSecurityEvent('context_menu'));
+
+// ===== โหลดรายชื่อ provider/model จาก server =====
+async function loadProviders() {
+  const res = await fetch('/v1/models');
+  const data = await res.json();
+  PROVIDERS = data.providers;
+  providerSelect.innerHTML = Object.entries(PROVIDERS)
+    .map(([key, p]) => `<option value="${key}">${p.label}</option>`).join('');
+  providerSelect.value = 'anthropic';
+  populateModels();
+}
+function populateModels() {
+  const p = PROVIDERS[providerSelect.value];
+  modelSelect.innerHTML = Object.entries(p.models)
+    .map(([key, m]) => { const t = providerSelect.value === 'openrouter' ? 'free' : ((providerSelect.value === 'anthropic' && !key.includes('haiku')) || (providerSelect.value === 'openai' && !key.includes('luna')) || (providerSelect.value === 'gemini' && key.includes('pro')) ? 'max' : 'plus'); const rank={free:0,plus:1,max:2}; return `<option value="${key}" ${rank[accountTier] < rank[t] ? 'disabled' : ''}>[${t.toUpperCase()}] ${m.label} ($${m.input}/$${m.output})</option>`; }).join('');
+  modelSelect.value = p.defaultModel;
+}
+providerSelect.addEventListener('change', populateModels);
+
+fileInput.addEventListener('change', () => {
+  fileList.textContent = Array.from(fileInput.files).map(f => f.name).join(', ');
+});
+
+// ===== Chat bubbles =====
+function addBubble(role, text, footHtml) {
+  const row = document.createElement('div');
+  row.className = 'row ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  row.appendChild(bubble);
+  if (footHtml) {
+    const foot = document.createElement('div');
+    foot.className = 'msg-foot';
+    foot.innerHTML = footHtml;
+    row.appendChild(foot);
+  }
+  chatScroll.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+  return row;
+}
+
+function addTypingIndicator() {
+  const row = document.createElement('div');
+  row.className = 'row assistant';
+  row.id = 'typingRow';
+  row.innerHTML = `<div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  chatScroll.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+}
+function removeTypingIndicator() {
+  const el = document.getElementById('typingRow');
+  if (el) el.remove();
+}
+
+// พิมพ์ทีละตัวอักษรแบบ typewriter ให้ดูเหมือนกำลังพิมพ์อยู่ (ยืนยันว่าเว็บไม่ตาย)
+function typewriterReveal(bubbleEl, text, done) {
+  let i = 0;
+  const speed = text.length > 600 ? 4 : 14; // ข้อความยาวพิมพ์เร็วขึ้น กันรอนาน
+  const timer = setInterval(() => {
+    i += speed;
+    bubbleEl.textContent = text.slice(0, i);
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+    if (i >= text.length) { clearInterval(timer); bubbleEl.textContent = text; if (done) done(); }
+  }, 16);
+}
+
+async function sendMessage() {
+  const message = document.getElementById('message').value.trim();
+  const provider = providerSelect.value;
+  const model = modelSelect.value;
+  const maxTokens = document.getElementById('maxTokens').value;
+
+  if (!message && fileInput.files.length === 0) return;
+  if (!apiKeyInput.value.trim()) { window.location.href = '/login.html'; return; }
+
+  addBubble('user', message || '(แนบไฟล์)');
+  document.getElementById('message').value = '';
+  limitBanner.classList.remove('show');
+
+  const fd = new FormData();
+  fd.append('message', message);
+  fd.append('provider', provider);
+  fd.append('model', model);
+  fd.append('max_tokens', maxTokens);
+  if (currentConversationId) fd.append('conversationId', currentConversationId);
+  Array.from(fileInput.files).forEach(f => fd.append('files', f));
+
+  sendBtn.disabled = true;
+  addTypingIndicator();
+
+  try {
+    const res = await fetch('/v1/chat', { method: 'POST', headers: hdr(), body: fd });
+    const data = await res.json();
+    removeTypingIndicator();
+
+    if (!res.ok) {
+      if (data.code === 'BUDGET_LIMIT_REACHED') {
+        limitBanner.textContent = '🚫 ' + data.error;
+        limitBanner.classList.add('show');
+      }
+      addBubble('system', '❌ ' + (data.error || 'error'));
+    } else {
+      currentConversationId = data.conversationId;
+      const foot = `<span>${data.provider}/${data.model} · ${data.usage.inputTokens}→${data.usage.outputTokens} tok · $${data.cost.usd} (฿${data.cost.thb})</span>
+                    <a data-id="${data.download.responseId}" class="dl-link">⬇ ดาวน์โหลดคำตอบ (.md)</a>`;
+      const row = addBubble('assistant', '', foot);
+      const bubbleEl = row.querySelector('.bubble');
+      typewriterReveal(bubbleEl, data.reply, () => checkBudgetWarning());
+      row.querySelector('.dl-link').addEventListener('click', () => downloadResponse(data.download.responseId));
+      refreshConvList();
+    }
+  } catch (e) {
+    removeTypingIndicator();
+    addBubble('system', '❌ ' + e.message);
+  } finally {
+    fileInput.value = '';
+    fileList.textContent = '';
+    sendBtn.disabled = false;
+  }
+}
+
+async function downloadResponse(responseId) {
+  const res = await fetch('/v1/download/' + responseId, { headers: hdr() });
+  if (!res.ok) { alert('โหลดไฟล์ไม่สำเร็จ'); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `claude-proxy-${responseId}.md`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+sendBtn.addEventListener('click', sendMessage);
+document.getElementById('message').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// ===== New chat / conversation sidebar =====
+document.getElementById('newChatBtn').addEventListener('click', () => {
+  currentConversationId = null;
+  chatScroll.innerHTML = '<div class="row system"><div class="bubble">เริ่มแชทใหม่แล้ว พิมพ์ข้อความได้เลย</div></div>';
+  document.querySelectorAll('.convitem').forEach(el => el.classList.remove('active'));
+});
+
+async function refreshConvList() {
+  if (!apiKeyInput.value.trim()) return;
+  const res = await fetch('/v1/conversations', { headers: hdr() });
+  if (!res.ok) return;
+  const data = await res.json();
+  const list = document.getElementById('convList');
+  if (data.conversations.length === 0) {
+    list.innerHTML = '<div class="empty-convs">ยังไม่มีแชท</div>';
+    return;
+  }
+  list.innerHTML = data.conversations.map(c => `
+    <div class="convitem ${c.id === currentConversationId ? 'active' : ''}" data-id="${c.id}">
+      <span class="t">${c.title}</span>
+      <span class="x" data-del="${c.id}">✕</span>
+    </div>`).join('');
+  list.querySelectorAll('.convitem').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.dataset.del) return;
+      loadConversation(el.dataset.id);
+    });
+  });
+  list.querySelectorAll('[data-del]').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await fetch('/v1/conversations/' + el.dataset.del, { method: 'DELETE', headers: hdr() });
+      if (el.dataset.del === currentConversationId) {
+        currentConversationId = null;
+        chatScroll.innerHTML = '<div class="row system"><div class="bubble">แชทถูกลบแล้ว เริ่มแชทใหม่ได้เลย</div></div>';
+      }
+      refreshConvList();
+    });
+  });
+}
+
+async function loadConversation(id) {
+  const res = await fetch('/v1/conversations/' + id, { headers: hdr() });
+  if (!res.ok) return;
+  const data = await res.json();
+  currentConversationId = data.id;
+  providerSelect.value = data.provider;
+  populateModels();
+  modelSelect.value = data.model;
+
+  chatScroll.innerHTML = '';
+  data.messages.forEach(m => {
+    let text = m.text;
+    if (m.attachments.length) text += `\n[แนบ ${m.attachments.length} ไฟล์: ${m.attachments.map(a=>a.filename||a.type).join(', ')}]`;
+    addBubble(m.role, text);
+  });
+  document.querySelectorAll('.convitem').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+}
+
+// ===== เช็คงบประมาณเบาๆ (แค่ขึ้น banner เตือนถ้าใกล้เต็ม ตัวเลขละเอียดดูได้ที่หน้า "การใช้งาน") =====
+async function checkBudgetWarning() {
+  if (!apiKeyInput.value.trim()) return;
+  try {
+    const res = await fetch('/v1/usage', { headers: hdr() });
+    if (!res.ok) return;
+    const d = await res.json();
+    const pct = Math.min(1, d.today.usedUSD / d.limits.dailyBudgetUSD);
+    if (pct >= 0.9 && pct < 1) {
+      limitBanner.textContent = `⚠️ ใช้งบวันนี้ไปแล้ว ${Math.round(pct * 100)}% ($${d.today.usedUSD.toFixed(4)} / $${d.limits.dailyBudgetUSD}) — ดูรายละเอียดที่เมนู "การใช้งาน"`;
+      limitBanner.classList.add('show');
+    }
+  } catch (e) { /* silent */ }
+}
+
+(async function init() {
+  const profile = await fetch('/v1/profile', { headers: hdr() }).then(r => r.json()).catch(() => ({}));
+  accountTier = profile.tier || 'free';
+  await loadProviders();
+  checkBudgetWarning();
+  refreshConvList();
+  setInterval(checkBudgetWarning, 15000);
+})();
+</script>
+
+</body>
+</html>

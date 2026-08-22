@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nong Bojo Ai— เข้าสู่ระบบ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14161B; --panel:#1B1E25; --panel-2:#20232B; --panel-3:#262A33;
+    --border:#2B2F3A; --text:#ECE9E1; --muted:#8A8F9C;
+    --amber:#F0A93B; --amber-dim:#8a6a2c;
+    --red:#E85D4C; --green:#5FBF87;
+    --mono:'IBM Plex Mono', monospace;
+    --sans:'IBM Plex Sans Thai','IBM Plex Mono',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;}
+
+  .card{
+    width:100%;max-width:380px;background:var(--panel);border:1px solid var(--border);
+    border-radius:12px;padding:28px;
+  }
+  .brand{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:22px;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);}
+  .brand span{font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;}
+
+  .tabs{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:20px;}
+  .tab{flex:1;text-align:center;padding:9px;font-family:var(--mono);font-size:12px;color:var(--muted);cursor:pointer;background:var(--panel-2);}
+  .tab.active{background:var(--panel-3);color:var(--amber);}
+
+  label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:5px;}
+  .field{margin-bottom:14px;}
+  input[type=text], input[type=password]{
+    width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    font-family:var(--mono);font-size:13px;padding:9px 10px;border-radius:6px;outline:none;
+  }
+  input[type=text]:focus, input[type=password]:focus{border-color:var(--amber);}
+  .hint{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:5px;}
+
+  .submitbtn{
+    width:100%;background:var(--amber);color:#1a1300;border:none;font-family:var(--mono);
+    font-weight:700;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;
+    padding:11px;border-radius:6px;cursor:pointer;margin-top:6px;
+  }
+  .submitbtn:hover{filter:brightness(1.08);}
+  .submitbtn:disabled{opacity:0.5;cursor:not-allowed;}
+
+  .msg{font-family:var(--mono);font-size:12px;padding:9px 11px;border-radius:6px;margin-bottom:14px;display:none;}
+  .msg.error{display:block;background:rgba(232,93,76,0.12);border:1px solid var(--red);color:#ffb3a8;}
+  .msg.success{display:block;background:rgba(95,191,135,0.12);border:1px solid var(--green);color:#bdf0d2;}
+  .terms{display:none;max-height:250px;overflow:auto;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;padding:12px;font-size:12px;line-height:1.55;color:var(--muted);margin:0 0 12px}.terms.show{display:block}.consent{display:none;font-size:11px;line-height:1.45;color:var(--text);margin:10px 0}.consent.show{display:block}.consent label{font-family:var(--sans);font-size:11px;text-transform:none;letter-spacing:0;display:flex;gap:8px;align-items:flex-start;margin:9px 0}.consent input{margin-top:3px}.decline{display:none;background:transparent;color:var(--muted);border:0;font-size:10px;cursor:pointer;text-decoration:underline;padding:3px}.decline.show{display:inline-block}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="brand"><span class="dot"></span><span>Nong Bojo Ai</span></div>
+
+  <div class="tabs">
+    <div class="tab active" id="tabLogin">เข้าสู่ระบบ</div>
+    <div class="tab" id="tabRegister">สมัครสมาชิก</div>
+  </div>
+
+  <div class="msg" id="msgBox"></div>
+
+  <form id="authForm">
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="username" autocomplete="username" spellcheck="false" required />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" autocomplete="current-password" required />
+      <div class="hint" id="pwHint" style="display:none;">อย่างน้อย 8 ตัวอักษร</div>
+    </div>
+    <div class="terms" id="termsBox"><b style="color:#ECE9E1">ข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัว</b><p><b>1. การให้บริการและรูปแบบสมาชิก</b><br>Free Tier ให้สิทธิ์ใช้โมเดลพื้นฐานโดยไม่มีค่าใช้จ่าย ภายใต้ rate limit, ขนาดข้อความ และความพร้อมของระบบ ส่วน Plus และ Max ให้เข้าถึงโมเดลระดับสูงตาม tier และเครดิต Token ที่มี ระบบคำนวณและหักเครดิตตาม input/output token และอัตราของโมเดลที่เลือก</p><p><b>2. ข้อมูลบัญชีและประวัติการสนทนา</b><br>ระบบจัดเก็บ username, ข้อมูลการยืนยันตัวตน, API key ภายใน, ประวัติแชท, ข้อมูลการใช้งาน และบันทึกความปลอดภัย เท่าที่จำเป็นต่อการให้บริการ การป้องกันการใช้งานผิดปกติ การแก้ไขปัญหา และการแสดงประวัติย้อนหลังแก่บัญชีของคุณ</p><p><b>3. ความรับผิดชอบของผู้ใช้</b><br>ห้ามใช้บริการเพื่อการละเมิดสิทธิ์ผู้อื่น การโจมตีระบบ การส่งมัลแวร์ การหลอกลวง หรือการนำเนื้อหาที่ได้ไปใช้โดยฝ่าฝืนกฎหมายและเงื่อนไขของผู้ให้บริการโมเดล ระบบอาจจำกัด ระงับ หรือปิดบัญชีเมื่อพบการใช้งานที่เสี่ยงหรือผิดเงื่อนไข</p><p><b>4. ข้อมูลและความเป็นส่วนตัว</b><br>อย่าส่งรหัสผ่าน ข้อมูลบัตร ข้อมูลสุขภาพ หรือข้อมูลลับที่ไม่ควรเปิดเผยเข้าในบทสนทนา ผู้ให้บริการโมเดลภายนอกอาจประมวลผลข้อความตามนโยบายของตน ระบบใช้ข้อมูลเชิงสถิติที่ลดการระบุตัวตนเพื่อปรับปรุงประสิทธิภาพได้</p><p><b>5. การชำระเงินและเครดิต</b><br>การซื้อ token หรือการเปลี่ยน tier จะมีผลเมื่อระบบยืนยันการชำระเงินเท่านั้น QR ในรุ่นทดสอบอาจเป็นเพียง QR จำลองและไม่ถือเป็นการชำระเงินจริง ราคาและสิทธิ์อาจมีการปรับปรุงโดยแจ้งผ่านระบบ</p><p><b>6. ข้อจำกัดความรับผิด</b><br>คำตอบจาก AI อาจคลาดเคลื่อน ไม่ใช่คำแนะนำทางกฎหมาย การแพทย์ การเงิน หรือวิชาชีพ ผู้ใช้ต้องตรวจสอบก่อนนำไปตัดสินใจหรือเผยแพร่</p><p>การกดสมัครสมาชิกหมายถึงคุณยืนยันว่ามีสิทธิ์ใช้งานบริการและยอมรับเงื่อนไขฉบับนี้</p></div>
+    <div class="consent" id="consentBox"><label><input type="checkbox" id="termsAccepted"> <span><b>ฉันได้อ่านและยอมรับเงื่อนไขการให้บริการและนโยบายความเป็นส่วนตัว</b> (จำเป็น)</span></label><label><input type="checkbox" id="marketingConsent"> <span>ฉันยินยอมให้ใช้ข้อมูลความสนใจแบบไม่ระบุตัวตนเพื่อข้อเสนอ/โฆษณา (สมัครใจ และ opt-out ได้ภายหลัง)</span></label></div>
+    <button type="submit" class="submitbtn" id="submitBtn">เข้าสู่ระบบ</button>
+    <button type="button" class="decline" id="declineBtn">ปฏิเสธและกลับไปหน้าเข้าสู่ระบบ</button>
+  </form>
+</div>
+
+<script>
+let mode = 'login'; // 'login' | 'register'
+
+const tabLogin = document.getElementById('tabLogin');
+const tabRegister = document.getElementById('tabRegister');
+const submitBtn = document.getElementById('submitBtn');
+const pwHint = document.getElementById('pwHint');
+const passwordInput = document.getElementById('password');
+const msgBox = document.getElementById('msgBox');
+const form = document.getElementById('authForm');
+
+function setMode(newMode) {
+  mode = newMode;
+  tabLogin.classList.toggle('active', mode === 'login');
+  tabRegister.classList.toggle('active', mode === 'register');
+  submitBtn.textContent = mode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก';
+  pwHint.style.display = mode === 'register' ? 'block' : 'none';
+  document.getElementById('termsBox').classList.toggle('show', mode === 'register'); document.getElementById('consentBox').classList.toggle('show', mode === 'register'); document.getElementById('declineBtn').classList.toggle('show', mode === 'register');
+  passwordInput.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  msgBox.className = 'msg';
+  msgBox.textContent = '';
+}
+
+tabLogin.addEventListener('click', () => setMode('login'));
+tabRegister.addEventListener('click', () => setMode('register'));
+document.getElementById('declineBtn').addEventListener('click',()=>{document.getElementById('termsAccepted').checked=false;setMode('login')});
+
+// ถ้ามี apiKey อยู่แล้วใน localStorage ให้เด้งไปหน้าแชทเลย ไม่ต้อง login ซ้ำ
+if (localStorage.getItem('claudeProxyApiKey')) {
+  window.location.href = '/index.html';
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('username').value.trim();
+  const password = passwordInput.value;
+  if (mode === 'register' && !document.getElementById('termsAccepted').checked) { msgBox.className='msg error'; msgBox.textContent='กรุณายอมรับข้อตกลงเพื่อสมัครสมาชิก'; return; }
+
+  msgBox.className = 'msg';
+  msgBox.textContent = '';
+  submitBtn.disabled = true;
+
+  try {
+    const res = await fetch(`/auth/${mode === 'login' ? 'login' : 'register'}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, termsAccepted: document.getElementById('termsAccepted').checked, marketingConsent: document.getElementById('marketingConsent').checked }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      msgBox.className = 'msg error';
+      msgBox.textContent = data.error || 'เกิดข้อผิดพลาด';
+      submitBtn.disabled = false;
+      return;
+    }
+
+    localStorage.setItem('claudeProxyApiKey', data.apiKey);
+    localStorage.setItem('claudeProxyUsername', data.username);
+
+    msgBox.className = 'msg success';
+    msgBox.textContent = mode === 'login' ? 'เข้าสู่ระบบสำเร็จ กำลังพาไปหน้าแชท...' : 'สมัครสำเร็จ กำลังพาไปหน้าแชท...';
+    setTimeout(() => { window.location.href = '/index.html'; }, 500);
+  } catch (err) {
+    msgBox.className = 'msg error';
+    msgBox.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้: ' + err.message;
+    submitBtn.disabled = false;
+  }
+});
+</script>
+
+</body>
+</html>

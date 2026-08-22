@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Claude Proxy — การใช้งาน / งบประมาณ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#14161B; --panel:#1B1E25; --panel-2:#20232B; --panel-3:#262A33;
+    --border:#2B2F3A; --text:#ECE9E1; --muted:#8A8F9C;
+    --amber:#F0A93B; --amber-dim:#8a6a2c;
+    --red:#E85D4C; --green:#5FBF87;
+    --mono:'IBM Plex Mono', monospace;
+    --sans:'IBM Plex Sans Thai','IBM Plex Mono',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{min-height:100vh;min-height:100dvh;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+  .app{display:grid;grid-template-columns:250px 1fr;min-height:100vh;min-height:100dvh;}
+  @media (max-width: 800px){ .app{grid-template-columns:0 1fr;} .sidebar{display:none;} }
+
+  /* ===== Sidebar ===== */
+  .sidebar{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar-head{padding:16px;border-bottom:1px solid var(--border);}
+  .brand{display:flex;align-items:center;gap:8px;}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);}
+  .brand span{font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;}
+  .userinfo{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+  .userinfo .avatar{
+    width:26px;height:26px;border-radius:50%;background:var(--panel-3);color:var(--amber);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;
+  }
+  .userinfo .uname{font-family:var(--mono);font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .navmenu{padding:8px;}
+  .navlink{
+    display:flex;align-items:center;gap:8px;width:100%;background:transparent;border:none;color:var(--muted);
+    font-family:var(--mono);font-size:12px;padding:9px 10px;border-radius:7px;cursor:pointer;text-align:left;
+    text-decoration:none;
+  }
+  .navlink:hover{background:var(--panel-2);color:var(--text);}
+  .navlink.active{background:var(--panel-3);color:var(--amber);}
+
+  /* ===== Main ===== */
+  .main{overflow-y:auto;padding:26px 30px;}
+  .page-title{font-family:var(--mono);font-size:16px;font-weight:700;letter-spacing:0.02em;margin-bottom:18px;}
+
+  /* เมนูย่อยในหน้า usage: ภาพรวม / กราฟ / ประวัติ / ตั้งค่า */
+  .subtabs{display:flex;gap:6px;border-bottom:1px solid var(--border);margin-bottom:22px;flex-wrap:wrap;}
+  .subtab{
+    font-family:var(--mono);font-size:12px;color:var(--muted);background:transparent;border:none;
+    padding:9px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+  }
+  .subtab:hover{color:var(--text);}
+  .subtab.active{color:var(--amber);border-bottom-color:var(--amber);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .section-label{
+    font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;
+    letter-spacing:0.1em;margin-bottom:14px;display:flex;align-items:center;gap:8px;
+  }
+  .section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  /* Overview */
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;padding:10px 0 4px;max-width:320px;}
+  .gauge-num{font-family:var(--mono);font-size:30px;font-weight:700;margin-top:-64px;}
+  .gauge-label{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;text-align:center;}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:18px;max-width:640px;}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:11px 13px;}
+  .stat .label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;}
+  .stat .value{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:4px;}
+
+  /* Charts */
+  .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;}
+  @media (max-width: 900px){ .chart-grid{grid-template-columns:1fr;} }
+  .chart-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;}
+  .chart-card h3{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 12px;font-weight:600;}
+  .chart-card canvas{max-height:240px;}
+  .chart-empty{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;padding:40px 0;}
+  .days-select{
+    font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    padding:5px 8px;border-radius:6px;margin-bottom:16px;
+  }
+
+  /* Log */
+  .log-table{width:100%;max-width:720px;border-collapse:collapse;margin-top:4px;font-family:var(--mono);font-size:11px;}
+  .log-table th{text-align:left;color:var(--muted);font-weight:500;padding:6px 6px;border-bottom:1px solid var(--border);}
+  .log-table td{padding:6px 6px;border-bottom:1px solid var(--border);}
+  .log-table tr:last-child td{border-bottom:none;}
+  .no-key{color:var(--muted);font-family:var(--mono);font-size:12px;}
+
+  /* Settings */
+  .settings-form{max-width:360px;}
+  .field{margin-bottom:16px;}
+  .field label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:5px;}
+  .field .hint{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;}
+  .field input{
+    width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    font-family:var(--mono);font-size:13px;padding:8px 10px;border-radius:6px;outline:none;
+  }
+  .field input:focus{border-color:var(--amber);}
+  .savebtn{
+    background:var(--amber);color:#1a1300;border:none;font-family:var(--mono);font-weight:700;
+    font-size:12px;letter-spacing:0.05em;text-transform:uppercase;padding:10px 18px;border-radius:6px;cursor:pointer;
+  }
+  .savebtn:hover{filter:brightness(1.08);}
+  .savebtn:disabled{opacity:0.5;cursor:not-allowed;}
+  .settings-msg{font-family:var(--mono);font-size:12px;padding:9px 11px;border-radius:6px;margin-bottom:14px;display:none;}
+  .settings-msg.error{display:block;background:rgba(232,93,76,0.12);border:1px solid var(--red);color:#ffb3a8;}
+  .settings-msg.success{display:block;background:rgba(95,191,135,0.12);border:1px solid var(--green);color:#bdf0d2;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <div class="brand"><span class="dot"></span><span>Claude Proxy</span></div>
+    </div>
+    <div class="userinfo">
+      <div class="avatar" id="userAvatar">?</div>
+      <div class="uname" id="userName">…</div>
+    </div>
+    <input id="apiKey" type="hidden" value="" />
+    <div class="navmenu">
+      <a class="navlink" href="/index.html">💬 แชท</a>
+      <a class="navlink active" href="/usage.html">📊 การใช้งาน / งบประมาณ</a>
+      <a class="navlink" href="/profile.html">👤 Profile & Plans</a>
+      <a class="navlink" href="/admin.html">🛡️ Admin menu</a>
+      <a class="navlink" href="#" id="logoutLink">🚪 ออกจากระบบ</a>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="page-title">Pay as you go — Usage & Token เครดิต</div>
+    <div class="settings-form" style="margin-bottom:22px"><div class="section-label">ซื้อ Token รายโมเดล (ราคา cost + 20%)</div><select id="buyModel" style="width:100%;padding:9px;margin-bottom:8px"></select><input id="buyInput" type="number" min="0" value="100000" placeholder="Input token" style="margin-bottom:8px"><input id="buyOutput" type="number" min="0" value="100000" placeholder="Output token" style="margin-bottom:8px"><button class="savebtn" id="buyBtn" type="button">สร้าง QR dummy</button><pre id="dummyQr" style="display:none;white-space:pre-wrap;background:#fff;color:#111;padding:12px;border-radius:6px"></pre></div>
+
+    <div class="subtabs">
+      <button class="subtab active" data-panel="panelOverview">ภาพรวม</button>
+      <button class="subtab" data-panel="panelCharts">กราฟ</button>
+      <button class="subtab" data-panel="panelLog">ประวัติ</button>
+      <button class="subtab" data-panel="panelSettings">ตั้งค่า</button>
+    </div>
+
+    <!-- ===== ภาพรวม ===== -->
+    <div class="panel active" id="panelOverview">
+      <div class="section-label">งบประมาณวันนี้</div>
+      <div class="gauge-wrap">
+        <svg width="200" height="120" viewBox="0 0 220 130">
+          <path d="M 20 110 A 90 90 0 0 1 200 110" fill="none" stroke="#2B2F3A" stroke-width="14" stroke-linecap="round"/>
+          <path id="gaugeArc" d="M 20 110 A 90 90 0 0 1 200 110" fill="none" stroke="#F0A93B" stroke-width="14" stroke-linecap="round"
+                stroke-dasharray="283" stroke-dashoffset="283"/>
+        </svg>
+        <div class="gauge-num" id="gaugePct">0%</div>
+        <div class="gauge-label" id="gaugeSub">$0.00 / $0.00 ใช้ไปวันนี้</div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="label">Daily budget</div><div class="value" id="statDaily">–</div></div>
+        <div class="stat"><div class="label">Monthly budget</div><div class="value" id="statMonthly">–</div></div>
+        <div class="stat"><div class="label">Req / min limit</div><div class="value" id="statRpm">–</div></div>
+        <div class="stat"><div class="label">Requests today</div><div class="value" id="statReqToday">–</div></div>
+      </div>
+    </div>
+
+    <!-- ===== กราฟ ===== -->
+    <div class="panel" id="panelCharts">
+      <select class="days-select" id="daysSelect">
+        <option value="7">7 วันล่าสุด</option>
+        <option value="14" selected>14 วันล่าสุด</option>
+        <option value="30">30 วันล่าสุด</option>
+      </select>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>ค่าใช้จ่ายรายวัน (USD)</h3>
+          <canvas id="dailyCostChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>จำนวน request รายวัน</h3>
+          <canvas id="dailyReqChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>สัดส่วนค่าใช้จ่ายตาม Provider</h3>
+          <canvas id="providerChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>สัดส่วนค่าใช้จ่ายตาม Model</h3>
+          <canvas id="modelChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ประวัติ ===== -->
+    <div class="panel" id="panelLog">
+      <div class="section-label">ประวัติล่าสุด</div>
+      <table class="log-table">
+        <thead><tr><th>เวลา</th><th>โมเดล</th><th>token</th><th>USD</th></tr></thead>
+        <tbody id="logBody"><tr><td colspan="4" class="no-key">ยังไม่มีประวัติ</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- ===== ตั้งค่า ===== -->
+    <div class="panel" id="panelSettings">
+      <div class="section-label">ปรับ budget / limit ของตัวเอง</div>
+      <div class="settings-msg" id="settingsMsg"></div>
+      <form class="settings-form" id="settingsForm">
+        <div class="field">
+          <label>Daily budget (USD)</label>
+          <input type="number" id="inDaily" step="0.01" min="0.01" required />
+          <div class="hint" id="hintDaily">สูงสุดที่ตั้งเองได้: –</div>
+        </div>
+        <div class="field">
+          <label>Monthly budget (USD)</label>
+          <input type="number" id="inMonthly" step="0.01" min="0.01" required />
+          <div class="hint" id="hintMonthly">สูงสุดที่ตั้งเองได้: –</div>
+        </div>
+        <div class="field">
+          <label>Requests / minute</label>
+          <input type="number" id="inRpm" step="1" min="1" required />
+          <div class="hint" id="hintRpm">สูงสุดที่ตั้งเองได้: –</div>
+        </div>
+        <button type="submit" class="savebtn" id="saveBtn">บันทึก</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const apiKeyInput = document.getElementById('apiKey');
+
+// ===== Auth guard =====
+const savedKey = localStorage.getItem('claudeProxyApiKey');
+const savedUsername = localStorage.getItem('claudeProxyUsername');
+if (!savedKey) {
+  window.location.href = '/login.html';
+}
+apiKeyInput.value = savedKey || '';
+document.getElementById('userName').textContent = savedUsername || 'ผู้ใช้';
+document.getElementById('userAvatar').textContent = (savedUsername || '?').slice(0, 1).toUpperCase();
+
+document.getElementById('logoutLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  localStorage.removeItem('claudeProxyApiKey');
+  localStorage.removeItem('claudeProxyUsername');
+  window.location.href = '/login.html';
+});
+
+function hdr() { return { 'x-api-key': apiKeyInput.value.trim() }; }
+function hdrJson() { return { 'x-api-key': apiKeyInput.value.trim(), 'Content-Type': 'application/json' }; }
+let catalog=[];
+fetch('/v1/catalog',{headers:hdr()}).then(r=>r.json()).then(d=>{catalog=Object.entries(d.providers).flatMap(([provider,p])=>p.models.map(m=>({...m,provider,label:`[${m.tier.toUpperCase()}] ${p.label} — ${m.label}`})));const s=document.getElementById('buyModel');s.innerHTML=catalog.map((m,i)=>`<option value="${i}">${m.label}</option>`).join('')}).catch(()=>{});
+document.getElementById('buyBtn').onclick=async()=>{const m=catalog[document.getElementById('buyModel').value];if(!m)return;const r=await fetch('/v1/checkout',{method:'POST',headers:hdrJson(),body:JSON.stringify({provider:m.provider,model:m.id,inputTokens:Number(document.getElementById('buyInput').value),outputTokens:Number(document.getElementById('buyOutput').value)})});const d=await r.json();const q=document.getElementById('dummyQr');q.style.display='block';q.textContent=r.ok?`DUMMY QR\n${d.qrText}\nยอด $${d.amountUsd.toFixed(6)} (รวมกำไร 20%)\n${d.notice}`:d.error};
+
+// ===== เมนูย่อย (tabs) =====
+const subtabs = document.querySelectorAll('.subtab');
+subtabs.forEach(btn => {
+  btn.addEventListener('click', () => {
+    subtabs.forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.panel).classList.add('active');
+    if (btn.dataset.panel === 'panelCharts') refreshCharts();
+  });
+});
+
+// ===== ภาพรวม (gauge + stat grid) =====
+async function refreshUsage() {
+  if (!apiKeyInput.value.trim()) return;
+  try {
+    const res = await fetch('/v1/usage', { headers: hdr() });
+    if (!res.ok) return;
+    const d = await res.json();
+
+    document.getElementById('statDaily').textContent = '$' + d.limits.dailyBudgetUSD;
+    document.getElementById('statMonthly').textContent = '$' + d.limits.monthlyBudgetUSD;
+    document.getElementById('statRpm').textContent = d.limits.requestsPerMinute;
+    document.getElementById('statReqToday').textContent = d.today.requests;
+
+    const pct = Math.min(1, d.today.usedUSD / d.limits.dailyBudgetUSD);
+    const circumference = 283;
+    const offset = circumference - pct * circumference;
+    const arc = document.getElementById('gaugeArc');
+    arc.setAttribute('stroke-dashoffset', offset);
+    arc.setAttribute('stroke', pct > 0.9 ? '#E85D4C' : pct > 0.6 ? '#F0A93B' : '#5FBF87');
+    document.getElementById('gaugePct').textContent = Math.round(pct * 100) + '%';
+    document.getElementById('gaugeSub').textContent = `$${d.today.usedUSD.toFixed(4)} / $${d.limits.dailyBudgetUSD} ใช้ไปวันนี้`;
+
+    const logBody = document.getElementById('logBody');
+    logBody.innerHTML = d.recentUsage.length === 0
+      ? '<tr><td colspan="4" class="no-key">ยังไม่มีประวัติ</td></tr>'
+      : d.recentUsage.map(u => `
+        <tr>
+          <td>${new Date(u.ts).toLocaleTimeString('th-TH')}</td>
+          <td>${(u.provider||'')}/${u.model.replace('claude-','')}</td>
+          <td>${u.inputTokens}/${u.outputTokens}</td>
+          <td>$${u.usdTotal.toFixed(5)}</td>
+        </tr>`).join('');
+  } catch (e) { /* silent */ }
+}
+
+// ===== กราฟ =====
+let dailyCostChartInstance, dailyReqChartInstance, providerChartInstance, modelChartInstance;
+const CHART_COLORS = ['#F0A93B', '#5FBF87', '#6FA8DC', '#E85D4C', '#B08CE0', '#8A8F9C', '#4CC9C0', '#E0A5C8'];
+
+function destroyIfExists(chart) { if (chart) chart.destroy(); }
+
+async function refreshCharts() {
+  if (!apiKeyInput.value.trim()) return;
+  const days = document.getElementById('daysSelect').value;
+  try {
+    const res = await fetch(`/v1/usage/stats?days=${days}`, { headers: hdr() });
+    if (!res.ok) return;
+    const stats = await res.json();
+
+    const labels = stats.daily.map(d => d.date.slice(5)); // MM-DD
+    const costData = stats.daily.map(d => d.usdTotal);
+    const reqData = stats.daily.map(d => d.requests);
+
+    const chartFont = { family: "'IBM Plex Mono', monospace", size: 10 };
+    const gridColor = '#2B2F3A';
+    const textColor = '#8A8F9C';
+
+    destroyIfExists(dailyCostChartInstance);
+    dailyCostChartInstance = new Chart(document.getElementById('dailyCostChart'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'USD', data: costData, backgroundColor: '#F0A93B', borderRadius: 3 }] },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: textColor, font: chartFont }, grid: { display: false } },
+          y: { ticks: { color: textColor, font: chartFont }, grid: { color: gridColor }, beginAtZero: true },
+        },
+      },
+    });
+
+    destroyIfExists(dailyReqChartInstance);
+    dailyReqChartInstance = new Chart(document.getElementById('dailyReqChart'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'requests', data: reqData, backgroundColor: '#6FA8DC', borderRadius: 3 }] },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: textColor, font: chartFont }, grid: { display: false } },
+          y: { ticks: { color: textColor, font: chartFont, precision: 0 }, grid: { color: gridColor }, beginAtZero: true },
+        },
+      },
+    });
+
+    const legendOpts = { position: 'bottom', labels: { color: textColor, font: chartFont, boxWidth: 10, padding: 10 } };
+
+    destroyIfExists(providerChartInstance);
+    if (stats.byProvider.length === 0) {
+      document.getElementById('providerChart').replaceWith(emptyMsgEl('providerChart'));
+    } else {
+      providerChartInstance = new Chart(document.getElementById('providerChart'), {
+        type: 'doughnut',
+        data: {
+          labels: stats.byProvider.map(p => p.provider),
+          datasets: [{ data: stats.byProvider.map(p => p.usdTotal), backgroundColor: CHART_COLORS }],
+        },
+        options: { responsive: true, plugins: { legend: legendOpts } },
+      });
+    }
+
+    destroyIfExists(modelChartInstance);
+    if (stats.byModel.length === 0) {
+      document.getElementById('modelChart').replaceWith(emptyMsgEl('modelChart'));
+    } else {
+      modelChartInstance = new Chart(document.getElementById('modelChart'), {
+        type: 'doughnut',
+        data: {
+          labels: stats.byModel.map(m => m.model),
+          datasets: [{ data: stats.byModel.map(m => m.usdTotal), backgroundColor: CHART_COLORS }],
+        },
+        options: { responsive: true, plugins: { legend: legendOpts } },
+      });
+    }
+  } catch (e) { /* silent */ }
+}
+
+function emptyMsgEl(originalId) {
+  const div = document.createElement('div');
+  div.className = 'chart-empty';
+  div.id = originalId;
+  div.textContent = 'ยังไม่มีข้อมูล';
+  return div;
+}
+
+document.getElementById('daysSelect').addEventListener('change', refreshCharts);
+
+// ===== ตั้งค่า (self-service budget/limit) =====
+const settingsForm = document.getElementById('settingsForm');
+const settingsMsg = document.getElementById('settingsMsg');
+const saveBtn = document.getElementById('saveBtn');
+
+async function loadSettings() {
+  if (!apiKeyInput.value.trim()) return;
+  try {
+    const res = await fetch('/v1/settings', { headers: hdr() });
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('inDaily').value = d.dailyBudgetUSD;
+    document.getElementById('inMonthly').value = d.monthlyBudgetUSD;
+    document.getElementById('inRpm').value = d.requestsPerMinute;
+    document.getElementById('inDaily').max = d.maxAllowed.dailyBudgetUSD;
+    document.getElementById('inMonthly').max = d.maxAllowed.monthlyBudgetUSD;
+    document.getElementById('inRpm').max = d.maxAllowed.requestsPerMinute;
+    document.getElementById('hintDaily').textContent = `สูงสุดที่ตั้งเองได้: $${d.maxAllowed.dailyBudgetUSD}`;
+    document.getElementById('hintMonthly').textContent = `สูงสุดที่ตั้งเองได้: $${d.maxAllowed.monthlyBudgetUSD}`;
+    document.getElementById('hintRpm').textContent = `สูงสุดที่ตั้งเองได้: ${d.maxAllowed.requestsPerMinute} req/min`;
+  } catch (e) { /* silent */ }
+}
+
+settingsForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  saveBtn.disabled = true;
+  settingsMsg.className = 'settings-msg';
+  settingsMsg.textContent = '';
+
+  const body = {
+    dailyBudgetUSD: Number(document.getElementById('inDaily').value),
+    monthlyBudgetUSD: Number(document.getElementById('inMonthly').value),
+    requestsPerMinute: Number(document.getElementById('inRpm').value),
+  };
+
+  try {
+    const res = await fetch('/v1/settings', { method: 'PATCH', headers: hdrJson(), body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) {
+      settingsMsg.className = 'settings-msg error';
+      settingsMsg.textContent = data.error || 'บันทึกไม่สำเร็จ';
+    } else {
+      settingsMsg.className = 'settings-msg success';
+      settingsMsg.textContent = 'บันทึกสำเร็จ';
+      refreshUsage();
+    }
+  } catch (err) {
+    settingsMsg.className = 'settings-msg error';
+    settingsMsg.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้: ' + err.message;
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+refreshUsage();
+loadSettings();
+setInterval(refreshUsage, 15000);
+</script>
+
+</body>
+</html>

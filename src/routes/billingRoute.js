@@ -1,0 +1,23 @@
+const express = require("express");
+const { requireApiKey } = require("../middleware/auth");
+const { PROVIDERS, getPricing } = require("../config/pricing");
+const { createPurchaseOrder, logAuditEvent } = require("../utils/db");
+const QRCode = require("qrcode");
+const router = express.Router();
+const MARKUP = 1.2;
+const tierFor = (provider, model) => provider === "openrouter" ? "free" : (provider === "anthropic" && !model.includes("haiku")) || (provider === "openai" && !model.includes("luna")) || (provider === "gemini" && model.includes("pro")) ? "max" : "plus";
+router.get("/profile", requireApiKey, (req,res) => res.json({ name:req.keyRecord.name, tier:req.keyRecord.tier, markupPercent:20 }));
+router.get("/catalog", requireApiKey, (req,res) => res.json({ markupPercent:20, providers: Object.fromEntries(Object.entries(PROVIDERS).map(([p,c]) => [p,{label:c.label,models:Object.entries(c.models).map(([id,m])=>({id,label:m.label,input:m.input,output:m.output,tier:tierFor(p,id)}))}])) }));
+router.post("/checkout", requireApiKey, async (req,res,next) => { try {
+  const { provider, model, inputTokens=0, outputTokens=0, tier } = req.body || {};
+  const p = provider && model ? getPricing(provider,model) : null;
+  const input = Math.max(0, Math.floor(Number(inputTokens)||0)), output = Math.max(0, Math.floor(Number(outputTokens)||0));
+  const amount = p ? ((input/1e6)*p.input + (output/1e6)*p.output)*MARKUP : 0;
+  if (p && input + output < 1000) return res.status(400).json({error:"ซื้อขั้นต่ำ 1,000 token"});
+  const order = await createPurchaseOrder({apiKey:req.apiKey,kind:p?"token":"tier",tier:tier || (p && tierFor(provider,model)),provider,model,inputTokens:input,outputTokens:output,amountUsd:amount});
+  await logAuditEvent({eventType:"checkout_created",username:req.keyRecord.name,ipAddress:req.ip,method:req.method,path:req.path,statusCode:201,metadata:{orderId:order.id,kind:order.kind,amountUsd:Number(order.amount_usd)}});
+  const qrText = `DUMMY-PAYMENT:${order.id}:USD:${Number(order.amount_usd).toFixed(6)}`;
+  const qrDataUrl = await QRCode.toDataURL(qrText, { width: 260, margin: 2 });
+  res.status(201).json({orderId:order.id,status:"pending",amountUsd:Number(order.amount_usd),qrText,qrDataUrl,notice:"QR นี้เป็นตัวอย่าง ยังไม่มีการตัดเงินหรือเติมเครดิต"});
+} catch(e){next(e)} });
+module.exports = router;
