@@ -102,6 +102,12 @@ async function initDb() {
       amount_usd NUMERIC(14,6) NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS purchase_orders_api_key_created_at ON purchase_orders (api_key, created_at DESC);
+    ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS amount_thb NUMERIC(12,2) NOT NULL DEFAULT 0;
+    ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS slip_data BYTEA;
+    ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS slip_mime TEXT;
+    ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
+    ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+    ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS review_note TEXT;
     ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS account_tier TEXT NOT NULL DEFAULT 'free';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT FALSE;
   `);
@@ -272,12 +278,46 @@ async function getAuditLogs({ limit = 100, afterId = 0 } = {}) {
 async function createPurchaseOrder(order) {
   const id = "ord_" + Date.now().toString(36) + crypto.randomBytes(4).toString("hex");
   const { rows } = await q(
-    `INSERT INTO purchase_orders (id,api_key,kind,tier,provider,model,input_tokens,output_tokens,amount_usd)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    `INSERT INTO purchase_orders (id,api_key,kind,tier,provider,model,input_tokens,output_tokens,amount_usd,amount_thb)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
     [id, order.apiKey, order.kind, order.tier || null, order.provider || null, order.model || null,
-     order.inputTokens || 0, order.outputTokens || 0, order.amountUsd]
+     order.inputTokens || 0, order.outputTokens || 0, order.amountUsd, order.amountThb || 0]
   );
   return rows[0];
+}
+
+async function submitPaymentSlip(id, apiKey, file) {
+  const { rows } = await q(
+    `UPDATE purchase_orders SET slip_data=$3, slip_mime=$4, submitted_at=NOW(), status='waiting_approval'
+     WHERE id=$1 AND api_key=$2 AND status='pending' RETURNING id,status`,
+    [id, apiKey, file.buffer, file.mimetype]
+  );
+  return rows[0] || null;
+}
+async function listPaymentApprovals() {
+  const { rows } = await q(
+    `SELECT o.id,o.kind,o.tier,o.amount_thb,o.status,o.created_at,o.submitted_at,o.slip_mime,k.name
+     FROM purchase_orders o JOIN api_keys k ON k.api_key=o.api_key
+     WHERE o.status='waiting_approval' ORDER BY o.submitted_at ASC`
+  );
+  return rows.map(r => ({ id:r.id, kind:r.kind, tier:r.tier, amountThb:Number(r.amount_thb), status:r.status, createdAt:r.created_at, submittedAt:r.submitted_at, slipMime:r.slip_mime, name:r.name }));
+}
+async function getPaymentSlip(id) {
+  const { rows } = await q("SELECT slip_data,slip_mime FROM purchase_orders WHERE id=$1 AND status='waiting_approval'", [id]);
+  return rows[0] || null;
+}
+async function reviewPaymentOrder(id, approved, note = "") {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query("SELECT * FROM purchase_orders WHERE id=$1 AND status='waiting_approval' FOR UPDATE", [id]);
+    const order = rows[0];
+    if (!order) { await client.query("ROLLBACK"); return null; }
+    if (approved && order.kind === "tier") await client.query("UPDATE api_keys SET account_tier=$2 WHERE api_key=$1", [order.api_key, order.tier]);
+    await client.query("UPDATE purchase_orders SET status=$2, reviewed_at=NOW(), review_note=$3, slip_data=NULL, slip_mime=NULL WHERE id=$1", [id, approved ? "approved" : "rejected", note]);
+    await client.query("COMMIT");
+    return { ...order, status: approved ? "approved" : "rejected" };
+  } catch (err) { await client.query("ROLLBACK"); throw err; } finally { client.release(); }
 }
 
 // ===== Usage stats (กราฟ) =====
@@ -484,7 +524,7 @@ module.exports = {
   readDb, writeDb,
   getKeyRecord, createKey, updateKeyLimits, deleteKey, listAccounts, setAccountTier,
   recordUsage, sumUsageSince,
-  getAllLogs, logAuditEvent, getAuditLogs, createPurchaseOrder, getUsageStats, updateOwnLimits,
+  getAllLogs, logAuditEvent, getAuditLogs, createPurchaseOrder, submitPaymentSlip, listPaymentApprovals, getPaymentSlip, reviewPaymentOrder, getUsageStats, updateOwnLimits,
   createConversation, getConversation, listConversations, appendMessage, deleteConversation,
   getUser, createUser, authenticateUser,
 };

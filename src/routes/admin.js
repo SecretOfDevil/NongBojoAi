@@ -1,6 +1,6 @@
 const express = require("express");
 const { requireAdmin } = require("../middleware/auth");
-const { listAccounts, setAccountTier } = require("../utils/db");
+const { listAccounts, setAccountTier, listPaymentApprovals, getPaymentSlip, reviewPaymentOrder, logAuditEvent } = require("../utils/db");
 
 const router = express.Router();
 
@@ -14,5 +14,8 @@ router.get("/accounts", requireAdmin, async (req, res, next) => {
 router.patch("/accounts/:apiKey/tier", requireAdmin, async (req, res, next) => {
   try { const tier = req.body?.tier; if (!['free','plus','max'].includes(tier)) return res.status(400).json({error:'invalid tier'}); const account=await setAccountTier(req.params.apiKey,tier); if(!account)return res.status(404).json({error:'account not found'}); res.json({account}); } catch(e){next(e);}
 });
+router.get("/payment-approvals", requireAdmin, async (req,res,next) => { try { res.json({ orders: await listPaymentApprovals() }); } catch(e){next(e)} });
+router.get("/payment-approvals/:id/slip", requireAdmin, async (req,res,next) => { try { const slip=await getPaymentSlip(req.params.id); if(!slip)return res.status(404).json({error:"slip not found"}); res.type(slip.slip_mime).send(slip.slip_data); } catch(e){next(e)} });
+router.post("/payment-approvals/:id/review", requireAdmin, async (req,res,next) => { try { const approved=req.body?.action === "approve"; if(!approved && req.body?.action !== "reject") return res.status(400).json({error:"invalid action"}); const order=await reviewPaymentOrder(req.params.id,approved,req.body?.note || ""); if(!order)return res.status(404).json({error:"order not found or already reviewed"}); await logAuditEvent({eventType:approved?"payment_approved":"payment_rejected",username:req.header("x-admin-username")||null,ipAddress:req.ip,method:req.method,path:req.path,statusCode:200,metadata:{orderId:order.id,tier:order.tier}}); res.json({order}); } catch(e){next(e)} });
 
 module.exports = router;
