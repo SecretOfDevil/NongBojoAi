@@ -41,6 +41,19 @@ app.use(cors());
 app.use(express.json({ limit: "256kb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
+// Vercel invokes this module per serverless instance. Ensure schema setup finishes
+// before routes touch PostgreSQL, without opening a listening socket in Vercel.
+const dbReady = initDb();
+app.use(async (req, res, next) => {
+  try {
+    await dbReady;
+    next();
+  } catch (err) {
+    console.error("PostgreSQL initialization failed:", err.message);
+    res.status(500).json({ error: "database initialization failed" });
+  }
+});
+
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 app.get("/v1/models", (req, res) => {
@@ -69,18 +82,13 @@ app.use((err, req, res, next) => {
   res.status(400).json({ error: err.message || "unexpected error" });
 });
 
-const PORT = process.env.PORT || 3000;
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-initDb()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`claude-proxy running at http://localhost:${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("ไม่สามารถเชื่อมต่อ PostgreSQL ได้ เซิร์ฟเวอร์ไม่รัน:", err.message);
-    process.exit(1);
-  });
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  dbReady
+    .then(() => app.listen(PORT, () => console.log(`claude-proxy running at http://localhost:${PORT}`)))
+    .catch((err) => console.error("ไม่สามารถเชื่อมต่อ PostgreSQL ได้ เซิร์ฟเวอร์ไม่รัน:", err.message));
+}
 
-
-  app.get('/favicon.ico', (req, res) => res.status(204).end());
+module.exports = app;

@@ -13,7 +13,7 @@ const { estimateHistoryInputTokens } = require("../utils/estimateTokens");
 const router = express.Router();
 const USD_TO_THB = Number(process.env.USD_TO_THB || 36.5);
 
-const RESPONSES_DIR = path.join(__dirname, "..", "..", "data", "responses");
+const RESPONSES_DIR = process.env.VERCEL ? path.join("/tmp", "responses") : path.join(__dirname, "..", "..", "data", "responses");
 if (!fs.existsSync(RESPONSES_DIR)) fs.mkdirSync(RESPONSES_DIR, { recursive: true });
 
 function startOfDayTs() {
