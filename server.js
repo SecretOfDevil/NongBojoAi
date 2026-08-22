@@ -81,3 +81,6 @@ initDb()
     console.error("ไม่สามารถเชื่อมต่อ PostgreSQL ได้ เซิร์ฟเวอร์ไม่รัน:", err.message);
     process.exit(1);
   });
+
+
+  app.get('/favicon.ico', (req, res) => res.status(204).end());
