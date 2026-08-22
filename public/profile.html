@@ -1,1 +1,117 @@
-<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Profile</title><style>body{margin:0;background:#14161b;color:#ece9e1;font:15px system-ui}.wrap{max-width:1080px;margin:auto;padding:28px}a{color:#f0a93b}.hero{display:flex;gap:14px;align-items:center;margin:24px 0}.avatar{width:58px;height:58px;border-radius:18px;background:#292d35;color:#f0a93b;display:grid;place-items:center;font:700 25px monospace}.muted{color:#8a8f9c}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}@media(max-width:700px){.cards{grid-template-columns:1fr}}.card{background:#1b1e25;border:1px solid #2b2f3a;border-radius:16px;padding:20px;min-height:320px;display:flex;flex-direction:column}.current{border-color:#f0a93b;box-shadow:0 0 0 1px #705019}.tag{font:700 11px monospace;color:#f0a93b}.current .tag{color:#5fbf87}h1,h2{margin:0 0 10px}.features{flex:1;line-height:1.75;color:#c9ced8}button{background:#f0a93b;border:0;border-radius:8px;padding:11px 14px;font-weight:800;cursor:pointer}button:disabled{background:#30353f;color:#9ca3b0}#payment{display:none;margin-top:20px;padding:18px;background:#f8f8f5;color:#111;border-radius:14px;max-width:340px}#payment img{width:250px;display:block;margin-bottom:10px}#payment input{display:block;margin:12px 0}#slipStatus{margin-top:10px}</style></head><body><main class="wrap"><a href="/index.html">← กลับหน้าแชท</a><section class="hero"><div id="avatar" class="avatar">?</div><div><h1 id="name">กำลังโหลดบัญชี…</h1><div id="status" class="muted"></div></div></section><div class="cards"><section class="card" data-tier="free"><span class="tag">FREE</span><h2>Free Tier</h2><p>เริ่มใช้งานและทดลองระบบได้ทันที</p><ul class="features"><li>Nemotron Nano / Super</li><li>Gemma 4 26B</li><li>Nemotron 3 Nano</li><li>Cohere North Mini Code</li></ul><button data-tier="free">เลือก FREE</button></section><section class="card" data-tier="plus"><span class="tag">PLUS</span><h2>Plus Tier</h2><p>สำหรับงานทั่วไปที่ต้องการความเร็วและความยืดหยุ่น</p><ul class="features"><li>DeepSeek V4 Flash / Pro</li><li>Llama และ GPT-OSS</li><li>GPT-5.6 Luna, Gemini Flash</li><li>Claude Haiku 4.5</li></ul><button data-tier="plus">เลือก PLUS</button></section><section class="card" data-tier="max"><span class="tag">MAX</span><h2>Max Tier</h2><p>สำหรับงานวิเคราะห์และงานซับซ้อน</p><ul class="features"><li>Claude Sonnet / Opus / Fable</li><li>GPT-5.6 Terra / Sol</li><li>Gemini 3.1 Pro</li></ul><button data-tier="max">เลือก MAX</button></section></div><section id="payment"></section></main><script>const key=localStorage.getItem('claudeProxyApiKey');if(!key)location='/login.html';const headers={'x-api-key':key,'Content-Type':'application/json'};let current='free';async function init(){const r=await fetch('/v1/profile',{headers}),p=await r.json();current=p.tier||'free';name.textContent=p.name||'ผู้ใช้';avatar.textContent=(p.name||'?')[0].toUpperCase();status.textContent='แผนปัจจุบันของคุณ: '+current.toUpperCase();document.querySelectorAll('.card').forEach(c=>{const active=c.dataset.tier===current,b=c.querySelector('button'),t=c.dataset.tier;c.classList.toggle('current',active);b.disabled=active;b.textContent=active?'Current plan':'เลือก '+t.toUpperCase()})}async function choose(t){const r=await fetch('/v1/checkout',{method:'POST',headers,body:JSON.stringify({tier:t})}),d=await r.json();if(!r.ok)return alert(d.error||'สร้างคำสั่งไม่สำเร็จ');const box=document.getElementById('payment');box.style.display='block';box.innerHTML=`<img src="${d.qrDataUrl}" alt="PromptPay QR"><b>PromptPay · ยอดชำระ ฿${d.amountThb}</b><p>${d.notice}</p><input id="slip" type="file" accept="image/*"><button id="upload">ส่งสลิปเพื่อรออนุมัติ</button><div id="slipStatus"></div>`;document.getElementById('upload').onclick=async()=>{const file=document.getElementById('slip').files[0],s=document.getElementById('slipStatus');if(!file){s.textContent='กรุณาเลือกรูปสลิป';return}const f=new FormData();f.append('slip',file);const x=await fetch('/v1/orders/'+d.orderId+'/slip',{method:'POST',headers:{'x-api-key':key},body:f}),out=await x.json();s.textContent=x.ok?'ส่งสลิปแล้ว รอ Admin ตรวจสอบ':'ส่งสลิปไม่สำเร็จ: '+(out.error||'unknown error')}}}document.querySelectorAll('button[data-tier]').forEach(b=>b.onclick=()=>choose(b.dataset.tier));init().catch(()=>status.textContent='โหลดข้อมูลบัญชีไม่สำเร็จ');</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profile and plans</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #14161b; color: #ece9e1; font: 15px system-ui, sans-serif; }
+    .wrap { max-width: 1080px; margin: auto; padding: 28px; }
+    a { color: #f0a93b; }
+    .hero { display: flex; gap: 14px; align-items: center; margin: 24px 0; }
+    .avatar { width: 58px; height: 58px; border-radius: 18px; background: #292d35; color: #f0a93b; display: grid; place-items: center; font: 700 25px monospace; }
+    .muted { color: #8a8f9c; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+    @media (max-width: 700px) { .cards { grid-template-columns: 1fr; } }
+    .card { background: #1b1e25; border: 1px solid #2b2f3a; border-radius: 16px; padding: 20px; min-height: 320px; display: flex; flex-direction: column; }
+    .current { border-color: #f0a93b; box-shadow: 0 0 0 1px #705019; }
+    .tag { font: 700 11px monospace; color: #f0a93b; }
+    .current .tag { color: #5fbf87; }
+    h1, h2 { margin: 0 0 10px; }
+    .features { flex: 1; line-height: 1.75; color: #c9ced8; }
+    button { background: #f0a93b; border: 0; border-radius: 8px; padding: 11px 14px; font-weight: 800; cursor: pointer; }
+    button:disabled { background: #30353f; color: #9ca3b0; cursor: default; }
+    #payment { display: none; margin-top: 20px; padding: 18px; background: #f8f8f5; color: #111; border-radius: 14px; max-width: 340px; }
+    #payment img { width: 250px; display: block; margin-bottom: 10px; }
+    #payment input { display: block; margin: 12px 0; }
+    #slipStatus { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a href="/index.html">Back to chat</a>
+    <section class="hero">
+      <div id="avatar" class="avatar">?</div>
+      <div>
+        <h1 id="name">Loading account...</h1>
+        <div id="status" class="muted"></div>
+      </div>
+    </section>
+    <div class="cards">
+      <section class="card" data-tier="free">
+        <span class="tag">FREE</span>
+        <h2>Free tier</h2>
+        <p>Start using the system immediately.</p>
+        <ul class="features"><li>Nemotron Nano / Super</li><li>Gemma 4 26B</li><li>Nemotron 3 Nano</li><li>Cohere North Mini Code</li></ul>
+        <button data-tier="free">Choose free</button>
+      </section>
+      <section class="card" data-tier="plus">
+        <span class="tag">PLUS</span>
+        <h2>Plus tier</h2>
+        <p>More models and higher limits for regular use.</p>
+        <ul class="features"><li>DeepSeek V4 Flash / Pro</li><li>Llama and GPT-OSS</li><li>GPT-5.6 Luna, Gemini Flash</li><li>Claude Haiku 4.5</li></ul>
+        <button data-tier="plus">Choose plus</button>
+      </section>
+      <section class="card" data-tier="max">
+        <span class="tag">MAX</span>
+        <h2>Max tier</h2>
+        <p>Highest limits and access to premium models.</p>
+        <ul class="features"><li>Claude Sonnet / Opus / Fable</li><li>GPT-5.6 Terra / Sol</li><li>Gemini 3.1 Pro</li></ul>
+        <button data-tier="max">Choose max</button>
+      </section>
+    </div>
+    <section id="payment"></section>
+  </main>
+  <script>
+    const apiKey = localStorage.getItem('claudeProxyApiKey');
+    const nameElement = document.getElementById('name');
+    const avatarElement = document.getElementById('avatar');
+    const statusElement = document.getElementById('status');
+    const paymentElement = document.getElementById('payment');
+
+    if (!apiKey) window.location.href = '/login.html';
+
+    const headers = { 'x-api-key': apiKey, 'Content-Type': 'application/json' };
+
+    async function init() {
+      const response = await fetch('/v1/profile', { headers });
+      const profile = await response.json();
+      if (!response.ok) throw new Error(profile.error || 'Unable to load profile');
+      const currentTier = profile.tier || 'free';
+      const displayName = profile.name || 'User';
+      nameElement.textContent = displayName;
+      avatarElement.textContent = displayName[0].toUpperCase();
+      statusElement.textContent = `Current plan: ${currentTier.toUpperCase()}`;
+      document.querySelectorAll('.card').forEach((card) => {
+        const active = card.dataset.tier === currentTier;
+        const button = card.querySelector('button');
+        card.classList.toggle('current', active);
+        button.disabled = active;
+        button.textContent = active ? 'Current plan' : `Choose ${card.dataset.tier}`;
+      });
+    }
+
+    async function chooseTier(tier) {
+      const response = await fetch('/v1/checkout', { method: 'POST', headers, body: JSON.stringify({ tier }) });
+      const data = await response.json();
+      if (!response.ok) { window.alert(data.error || 'Checkout failed'); return; }
+      paymentElement.style.display = 'block';
+      paymentElement.innerHTML = `<img src="${data.qrDataUrl}" alt="PromptPay QR code"><b>PromptPay: ${data.amountThb} THB</b><p>${data.notice}</p><input id="slip" type="file" accept="image/*"><button id="upload" type="button">Upload payment slip</button><div id="slipStatus"></div>`;
+      document.getElementById('upload').onclick = async () => {
+        const file = document.getElementById('slip').files[0];
+        const slipStatus = document.getElementById('slipStatus');
+        if (!file) { slipStatus.textContent = 'Please select a payment slip.'; return; }
+        const formData = new FormData();
+        formData.append('slip', file);
+        const slipResponse = await fetch(`/v1/orders/${data.orderId}/slip`, { method: 'POST', headers: { 'x-api-key': apiKey }, body: formData });
+        const result = await slipResponse.json();
+        slipStatus.textContent = slipResponse.ok ? 'Slip uploaded. An admin will review it.' : `Upload failed: ${result.error || 'Unknown error'}`;
+      };
+    }
+
+    document.querySelectorAll('button[data-tier]').forEach((button) => { button.onclick = () => chooseTier(button.dataset.tier); });
+    init().catch((error) => { statusElement.textContent = error.message || 'Unable to load account data.'; });
+  </script>
+</body>
+</html>
