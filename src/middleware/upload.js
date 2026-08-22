@@ -3,7 +3,7 @@ const path = require("path");
 
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 20);
 
-// ใช้ memory storage แทน disk (Vercel ไม่มี disk persistent)
+// ใช้ memory storage สำหรับ Vercel (serverless ไม่มี persistent disk)
 const storage = multer.memoryStorage();
 
 const ALLOWED_MIME = new Set([
