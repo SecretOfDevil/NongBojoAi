@@ -1,7 +1,7 @@
 const express = require("express");
 const { requireApiKey } = require("../middleware/auth");
 const { PROVIDERS, getPricing } = require("../config/pricing");
-const { createPurchaseOrder, logAuditEvent } = require("../utils/db");
+const { createPurchaseOrder, submitPaymentSlip, logAuditEvent } = require("../utils/db");
 const QRCode = require("qrcode");
 const generatePromptPayPayload = require("promptpay-qr");
 const multer = require("multer");
