@@ -16,6 +16,7 @@
     --mono:'IBM Plex Mono', monospace;
     --sans:'IBM Plex Sans Thai','IBM Plex Mono',sans-serif;
   }
+  :root[data-theme="light"]{--bg:#f4f1e9;--panel:#fffdf8;--panel-2:#f0ede4;--panel-3:#e4dfd2;--border:#d3ccbd;--text:#25231f;--muted:#746f65;--amber:#bd7411;--amber-dim:#9d681f;}
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
   body{min-height:100vh;min-height:100dvh;}
@@ -30,6 +31,7 @@
     .main{padding:0 14px 24px;}
     .mobile-nav{display:flex;position:sticky;top:0;z-index:5;gap:4px;overflow-x:auto;margin:0 -14px 18px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--border);}
     .mobile-nav a{flex:0 0 auto;color:var(--muted);font:11px var(--mono);padding:9px 10px;border-radius:6px;text-decoration:none;white-space:nowrap;}
+    .mobile-nav .theme-btn{width:auto;flex:0 0 auto;margin:0;white-space:nowrap;}
     .mobile-nav a:first-child{background:var(--panel-3);color:var(--amber);}
     .page-title{font-size:14px;line-height:1.4;}
     .chart-card{padding:12px;}
@@ -48,6 +50,10 @@
     display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;
   }
   .userinfo .uname{font-family:var(--mono);font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .userinfo-copy{min-width:0;flex:1;}
+  .tier-badge{display:inline-block;margin-top:4px;padding:2px 6px;border:1px solid var(--amber);border-radius:999px;color:var(--amber);font:700 9px var(--mono);letter-spacing:.08em;}
+  .theme-btn{width:100%;margin-top:8px;background:transparent;border:1px solid var(--border);color:var(--muted);font:11px var(--mono);padding:7px;border-radius:6px;cursor:pointer;}
+  .theme-btn:hover{border-color:var(--amber);color:var(--amber);}
   .navmenu{padding:8px;}
   .navlink{
     display:flex;align-items:center;gap:8px;width:100%;background:transparent;border:none;color:var(--muted);
@@ -137,7 +143,7 @@
     </div>
     <div class="userinfo">
       <div class="avatar" id="userAvatar">?</div>
-      <div class="uname" id="userName">…</div>
+      <div class="userinfo-copy"><div class="uname" id="userName">…</div><span class="tier-badge" id="userTier">FREE</span></div>
     </div>
     <input id="apiKey" type="hidden" value="" />
     <div class="navmenu">
@@ -146,12 +152,13 @@
       <a class="navlink" href="/profile.html">👤 Profile & Plans</a>
       <a class="navlink" href="/admin.html">🛡️ Admin menu</a>
       <a class="navlink" href="#" id="logoutLink">🚪 ออกจากระบบ</a>
+      <button class="theme-btn" id="themeBtn" type="button">☀️ Light mode</button>
     </div>
   </div>
 
   <!-- MAIN -->
   <div class="main">
-    <nav class="mobile-nav" aria-label="เมนูมือถือ"><a href="/index.html">💬 แชท</a><a href="/usage.html">📊 Usage</a><a href="/profile.html">👤 Profile</a><a href="/admin.html">🛡️ Admin</a><a href="#" id="mobileLogoutLink">🚪 ออก</a></nav>
+    <nav class="mobile-nav" aria-label="เมนูมือถือ"><a href="/index.html">💬 แชท</a><a href="/usage.html">📊 Usage</a><a href="/profile.html">👤 Profile</a><a href="/admin.html">🛡️ Admin</a><a href="#" id="mobileLogoutLink">🚪 ออก</a><button class="theme-btn" id="mobileThemeBtn" type="button">☀️ Light</button></nav>
     <div class="page-title">Pay as you go — Usage & Token เครดิต</div>
     <div class="settings-form" style="margin-bottom:22px"><div class="section-label">ซื้อ Token รายโมเดล</div><select id="buyModel" style="width:100%;padding:9px;margin-bottom:8px"></select><input id="buyInput" type="number" min="0" value="100000" placeholder="Input token" style="margin-bottom:8px"><input id="buyOutput" type="number" min="0" value="100000" placeholder="Output token" style="margin-bottom:8px"><button class="savebtn" id="buyBtn" type="button">สร้าง QR dummy</button><pre id="dummyQr" style="display:none;white-space:pre-wrap;background:#fff;color:#111;padding:12px;border-radius:6px"></pre></div>
 
@@ -251,12 +258,26 @@ const apiKeyInput = document.getElementById('apiKey');
 // ===== Auth guard =====
 const savedKey = localStorage.getItem('claudeProxyApiKey');
 const savedUsername = localStorage.getItem('claudeProxyUsername');
+document.documentElement.dataset.theme = localStorage.getItem('claudeProxyTheme') || 'dark';
 if (!savedKey) {
   window.location.href = '/login.html';
 }
 apiKeyInput.value = savedKey || '';
 document.getElementById('userName').textContent = savedUsername || 'ผู้ใช้';
 document.getElementById('userAvatar').textContent = (savedUsername || '?').slice(0, 1).toUpperCase();
+function updateThemeButtons() {
+  const label = document.documentElement.dataset.theme === 'light' ? '🌙 Dark mode' : '☀️ Light mode';
+  document.querySelectorAll('#themeBtn,#mobileThemeBtn').forEach(button => { button.textContent = label; });
+}
+function toggleTheme() {
+  const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem('claudeProxyTheme', theme);
+  updateThemeButtons();
+}
+document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+document.getElementById('mobileThemeBtn').addEventListener('click', toggleTheme);
+updateThemeButtons();
 
 document.getElementById('logoutLink').addEventListener('click', (e) => {
   e.preventDefault();
@@ -272,6 +293,7 @@ document.getElementById('mobileLogoutLink').addEventListener('click', (e) => {
 function hdr() { return { 'x-api-key': apiKeyInput.value.trim() }; }
 function hdrJson() { return { 'x-api-key': apiKeyInput.value.trim(), 'Content-Type': 'application/json' }; }
 let catalog=[];
+fetch('/v1/profile',{headers:hdr()}).then(r=>r.json()).then(profile=>{document.getElementById('userTier').textContent=(profile.tier||'free').toUpperCase();}).catch(()=>{});
 fetch('/v1/catalog',{headers:hdr()}).then(r=>r.json()).then(d=>{catalog=Object.entries(d.providers).flatMap(([provider,p])=>p.models.map(m=>({...m,provider,label:`[${m.tier.toUpperCase()}] ${p.label} — ${m.label}`})));const s=document.getElementById('buyModel');s.innerHTML=catalog.map((m,i)=>`<option value="${i}">${m.label}</option>`).join('')}).catch(()=>{});
 document.getElementById('buyBtn').onclick=async()=>{const m=catalog[document.getElementById('buyModel').value];if(!m)return;const r=await fetch('/v1/checkout',{method:'POST',headers:hdrJson(),body:JSON.stringify({provider:m.provider,model:m.id,inputTokens:Number(document.getElementById('buyInput').value),outputTokens:Number(document.getElementById('buyOutput').value)})});const d=await r.json();const q=document.getElementById('dummyQr');q.style.display='block';q.textContent=r.ok?`DUMMY QR\n${d.qrText}\n${d.notice}`:d.error};
 

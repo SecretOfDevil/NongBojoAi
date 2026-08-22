@@ -15,6 +15,7 @@
     --mono:'IBM Plex Mono', monospace;
     --sans:'IBM Plex Sans Thai','IBM Plex Mono',sans-serif;
   }
+  :root[data-theme="light"]{--bg:#f4f1e9;--panel:#fffdf8;--panel-2:#f0ede4;--panel-3:#e4dfd2;--border:#d3ccbd;--text:#25231f;--muted:#746f65;--amber:#bd7411;--amber-dim:#9d681f;}
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
   button,.filebtn,select,a{transition:transform .18s ease,background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,opacity .18s ease;}
@@ -40,6 +41,10 @@
     .mobile-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--border);}
     .mobile-close-btn{background:transparent;border:0;color:var(--muted);font-size:22px;cursor:pointer;}
     .mobile-newchat{margin:12px 12px 4px;width:calc(100% - 24px);text-align:left;background:var(--panel-2);border:1px solid var(--border);color:var(--text);font:12px var(--mono);padding:10px;border-radius:7px;cursor:pointer;}
+    .mobile-userinfo{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+    .mobile-userinfo .avatar{width:26px;height:26px;border-radius:50%;background:var(--panel-3);color:var(--amber);display:grid;place-items:center;font:700 11px var(--mono);}
+    .mobile-userinfo .uname{font:12px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .mobile-theme-btn{margin:10px 12px 0;width:calc(100% - 24px);}
     .mobile-convlist{flex:1;overflow:auto;padding:8px;}
     .mobile-nav{padding:8px;border-top:1px solid var(--border);}
     .mobile-nav a{display:block;color:var(--muted);font:12px var(--mono);padding:11px 10px;text-decoration:none;border-radius:7px;}
@@ -78,6 +83,10 @@
     display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;
   }
   .userinfo .uname{font-family:var(--mono);font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .userinfo-copy{min-width:0;flex:1;}
+  .tier-badge{display:inline-block;margin-top:4px;padding:2px 6px;border:1px solid var(--amber);border-radius:999px;color:var(--amber);font:700 9px var(--mono);letter-spacing:.08em;}
+  .theme-btn{width:100%;margin-top:8px;background:transparent;border:1px solid var(--border);color:var(--muted);font:11px var(--mono);padding:7px;border-radius:6px;cursor:pointer;}
+  .theme-btn:hover{border-color:var(--amber);color:var(--amber);}
 
   .convlist{flex:1;overflow-y:auto;padding:8px;}
   .convitem{
@@ -179,7 +188,7 @@
     </div>
     <div class="userinfo">
       <div class="avatar" id="userAvatar">?</div>
-      <div class="uname" id="userName">…</div>
+      <div class="userinfo-copy"><div class="uname" id="userName">…</div><span class="tier-badge" id="userTier">FREE</span></div>
     </div>
     <input id="apiKey" type="hidden" value="" />
     <div class="convlist" id="convList">
@@ -191,6 +200,7 @@
       <a class="navlink" href="/profile.html">👤 Profile & Plans</a>
       <a class="navlink" href="/admin.html">🛡️ Admin menu</a>
       <a class="navlink" href="#" id="logoutLink">🚪 ออกจากระบบ</a>
+      <button class="theme-btn" id="themeBtn" type="button">☀️ Light mode</button>
     </div>
   </div>
 
@@ -225,7 +235,9 @@
 
 <aside class="mobile-drawer" id="mobileDrawer" aria-label="เมนูมือถือ">
   <div class="mobile-drawer-head"><div class="brand"><span class="dot"></span><span>Nong Bojo Ai</span></div><button class="mobile-close-btn" id="mobileCloseBtn" type="button" aria-label="ปิดเมนู">×</button></div>
+  <div class="mobile-userinfo"><div class="avatar" id="mobileUserAvatar">?</div><div><div class="uname" id="mobileUserName">…</div><span class="tier-badge" id="mobileUserTier">FREE</span></div></div>
   <button class="mobile-newchat" id="mobileNewChatBtn" type="button">＋ แชทใหม่</button>
+  <button class="theme-btn mobile-theme-btn" id="mobileThemeBtn" type="button">☀️ Light mode</button>
   <div class="mobile-convlist" id="mobileConvList"><div class="empty-convs">ยังไม่มีแชท</div></div>
   <nav class="mobile-nav">
     <a href="/index.html">💬 แชท</a><a href="/usage.html">📊 การใช้งาน / งบประมาณ</a><a href="/profile.html">👤 Profile & Plans</a><a href="/admin.html">🛡️ Admin menu</a><a href="#" id="mobileLogoutLink">🚪 ออกจากระบบ</a>
@@ -254,12 +266,30 @@ function hdr() { return { 'x-api-key': apiKeyInput.value.trim() }; }
 // ที่ตั้งให้อัตโนมัติตอน login/สมัครสมาชิกที่ /login.html เท่านั้น
 const savedKey = localStorage.getItem('claudeProxyApiKey');
 const savedUsername = localStorage.getItem('claudeProxyUsername');
+const savedTheme = localStorage.getItem('claudeProxyTheme') || 'dark';
+document.documentElement.dataset.theme = savedTheme;
 if (!savedKey) {
   window.location.href = '/login.html';
 }
 apiKeyInput.value = savedKey || '';
 document.getElementById('userName').textContent = savedUsername || 'ผู้ใช้';
 document.getElementById('userAvatar').textContent = (savedUsername || '?').slice(0, 1).toUpperCase();
+document.getElementById('mobileUserName').textContent = savedUsername || 'ผู้ใช้';
+document.getElementById('mobileUserAvatar').textContent = (savedUsername || '?').slice(0, 1).toUpperCase();
+
+function updateThemeButtons() {
+  const label = document.documentElement.dataset.theme === 'light' ? '🌙 Dark mode' : '☀️ Light mode';
+  document.querySelectorAll('#themeBtn,#mobileThemeBtn').forEach(button => { button.textContent = label; });
+}
+function toggleTheme() {
+  const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem('claudeProxyTheme', theme);
+  updateThemeButtons();
+}
+document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+document.getElementById('mobileThemeBtn').addEventListener('click', toggleTheme);
+updateThemeButtons();
 
 document.getElementById('logoutLink').addEventListener('click', (e) => {
   e.preventDefault();
@@ -306,7 +336,7 @@ async function loadProviders() {
 function populateModels() {
   const p = PROVIDERS[providerSelect.value];
   modelSelect.innerHTML = Object.entries(p.models)
-    .map(([key, m]) => { const t = providerSelect.value === 'openrouter' ? 'free' : ((providerSelect.value === 'anthropic' && !key.includes('haiku')) || (providerSelect.value === 'openai' && !key.includes('luna')) || (providerSelect.value === 'gemini' && key.includes('pro')) ? 'max' : 'plus'); const rank={free:0,plus:1,max:2}; return `<option value="${key}" ${rank[accountTier] < rank[t] ? 'disabled' : ''}>[${t.toUpperCase()}] ${m.label}</option>`; }).join('');
+    .map(([key, m]) => { const budgetOpenAI=['gpt-5-nano','gpt-5-mini','gpt-4.1-nano','gpt-4.1-mini','gpt-4o-mini','gpt-5.6-luna']; const t = providerSelect.value === 'openrouter' ? 'free' : ((providerSelect.value === 'anthropic' && !key.includes('haiku')) || (providerSelect.value === 'openai' && !budgetOpenAI.includes(key)) || (providerSelect.value === 'gemini' && key.includes('pro')) ? 'max' : 'plus'); const rank={free:0,plus:1,max:2}; return `<option value="${key}" ${rank[accountTier] < rank[t] ? 'disabled' : ''}>[${t.toUpperCase()}] ${m.label}</option>`; }).join('');
   modelSelect.value = p.defaultModel;
 }
 providerSelect.addEventListener('change', populateModels);
@@ -511,6 +541,7 @@ async function checkBudgetWarning() {
 (async function init() {
   const profile = await fetch('/v1/profile', { headers: hdr() }).then(r => r.json()).catch(() => ({}));
   accountTier = profile.tier || 'free';
+  document.querySelectorAll('#userTier,#mobileUserTier').forEach(element => { element.textContent = accountTier.toUpperCase(); });
   await loadProviders();
   checkBudgetWarning();
   refreshConvList();

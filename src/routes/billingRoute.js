@@ -8,7 +8,10 @@ const multer = require("multer");
 const router = express.Router();
 const MARKUP = 1.2;
 const slipUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (req,file,cb) => cb(null, file.mimetype.startsWith("image/")) });
-const tierFor = (provider, model) => provider === "openrouter" ? "free" : (provider === "anthropic" && !model.includes("haiku")) || (provider === "openai" && !model.includes("luna")) || (provider === "gemini" && model.includes("pro")) ? "max" : "plus";
+const tierFor = (provider, model) => {
+  const budgetOpenAI = ["gpt-5-nano", "gpt-5-mini", "gpt-4.1-nano", "gpt-4.1-mini", "gpt-4o-mini", "gpt-5.6-luna"];
+  return provider === "openrouter" ? "free" : (provider === "anthropic" && !model.includes("haiku")) || (provider === "openai" && !budgetOpenAI.includes(model)) || (provider === "gemini" && model.includes("pro")) ? "max" : "plus";
+};
 router.get("/profile", requireApiKey, (req,res) => res.json({ name:req.keyRecord.name, tier:req.keyRecord.tier, markupPercent:20 }));
 router.get("/catalog", requireApiKey, (req,res) => res.json({ markupPercent:20, providers: Object.fromEntries(Object.entries(PROVIDERS).map(([p,c]) => [p,{label:c.label,models:Object.entries(c.models).map(([id,m])=>({id,label:m.label,input:m.input,output:m.output,tier:tierFor(p,id)}))}])) }));
 router.post("/checkout", requireApiKey, async (req,res,next) => { try {

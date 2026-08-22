@@ -20,9 +20,14 @@ const PROVIDERS = {
   openai: {
     label: "GPT (OpenAI)",
     apiKeyEnv: "OPENAI_API_KEY",
-    defaultModel: "gpt-5.6-terra",
+    defaultModel: "gpt-5-nano",
     capabilities: { image: true, document: false },
     models: {
+      "gpt-5-nano": { label: "GPT-5 Nano (ประหยัดสุด)", input: 0.05, output: 0.4 },
+      "gpt-5-mini": { label: "GPT-5 Mini", input: 0.25, output: 2.0 },
+      "gpt-4.1-nano": { label: "GPT-4.1 Nano", input: 0.1, output: 0.4 },
+      "gpt-4.1-mini": { label: "GPT-4.1 Mini", input: 0.4, output: 1.6 },
+      "gpt-4o-mini": { label: "GPT-4o Mini", input: 0.15, output: 0.6 },
       "gpt-5.6-sol": { label: "GPT-5.6 Sol", input: 5.0, output: 30.0 },
       "gpt-5.6-terra": { label: "GPT-5.6 Terra", input: 2.0, output: 12.0 },
       "gpt-5.6-luna": { label: "GPT-5.6 Luna", input: 0.2, output: 1.2 },
@@ -31,9 +36,11 @@ const PROVIDERS = {
   gemini: {
     label: "Gemini (Google)",
     apiKeyEnv: "GOOGLE_API_KEY",
-    defaultModel: "gemini-3.7-flash",
+    defaultModel: "gemini-2.5-flash-lite",
     capabilities: { image: true, document: true },
     models: {
+      "gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash-Lite (ประหยัดสุด)", input: 0.1, output: 0.4 },
+      "gemini-2.5-flash": { label: "Gemini 2.5 Flash", input: 0.3, output: 2.5 },
       "gemini-3.1-pro": { label: "Gemini 3.1 Pro", input: 2.0, output: 12.0 },
       "gemini-3.7-flash": { label: "Gemini 3.7 Flash", input: 0.75, output: 3.75 },
       "gemini-3.1-flash-lite": { label: "Gemini 3.1 Flash-Lite", input: 0.25, output: 1.5 },
@@ -97,7 +104,8 @@ function isValidModel(provider, model) {
 }
 function getModelTier(provider, model) {
   if (provider === "openrouter") return "free";
-  if ((provider === "anthropic" && !model.includes("haiku")) || (provider === "openai" && !model.includes("luna")) || (provider === "gemini" && model.includes("pro"))) return "max";
+  const budgetOpenAI = ["gpt-5-nano", "gpt-5-mini", "gpt-4.1-nano", "gpt-4.1-mini", "gpt-4o-mini", "gpt-5.6-luna"];
+  if ((provider === "anthropic" && !model.includes("haiku")) || (provider === "openai" && !budgetOpenAI.includes(model)) || (provider === "gemini" && model.includes("pro"))) return "max";
   return "plus";
 }
 
