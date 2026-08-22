@@ -17,6 +17,10 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  button,.filebtn,select,a{transition:transform .18s ease,background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,opacity .18s ease;}
+  button:active,.filebtn:active{transform:translateY(1px) scale(.98);}
+  button:focus-visible,.filebtn:focus-visible,select:focus-visible,a:focus-visible,textarea:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+  button:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(240,169,59,.16);}
   body{height:100vh;height:100dvh;overflow:hidden;}
   ::-webkit-scrollbar{width:8px;height:8px;}
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
@@ -25,9 +29,9 @@
   .mobile-topbar,.mobile-drawer,.mobile-backdrop{display:none;}
   @media (max-width: 800px){
     body{overflow:hidden;}
-    .app{display:block;height:100dvh;}
+    .app{display:block;height:100%;min-height:0;}
     .sidebar{display:none;}
-    .center{height:100dvh;border:0;}
+    .center{height:100%;min-height:0;border:0;}
     .mobile-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);}
     .mobile-title{font:600 12px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .mobile-menu-btn{width:40px;height:36px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:18px;cursor:pointer;}
@@ -49,7 +53,7 @@
     .chat-scroll{padding:14px 12px 18px;gap:12px;}
     .row{max-width:94%;}
     .bubble{font-size:14px;padding:10px 12px;}
-    .composer{padding:9px 10px calc(9px + env(safe-area-inset-bottom));}
+    .composer{position:relative;z-index:2;padding:9px 10px calc(9px + env(safe-area-inset-bottom));}
     .composer-box{padding:9px;}
     .composer-row{gap:6px;}
     .filebtn{font-size:10px;padding:6px 8px;}
@@ -138,7 +142,8 @@
   .composer-box{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px;}
   textarea{
     width:100%;background:transparent;border:none;color:var(--text);font-family:var(--sans);
-    font-size:14px;resize:none;min-height:44px;max-height:160px;outline:none;
+    font-size:14px;resize:none;min-height:44px;max-height:160px;outline:none;display:block;
+    -webkit-user-select:text;user-select:text;touch-action:manipulation;
   }
   .composer-row{display:flex;align-items:center;gap:9px;margin-top:8px;flex-wrap:wrap;}
   .filebtn{
@@ -156,6 +161,11 @@
   .sendbtn:hover{filter:brightness(1.08);}
   .sendbtn:disabled{opacity:0.45;cursor:not-allowed;}
   input[type=number]{background:var(--panel-2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 8px;border-radius:6px;width:70px;}
+  .mobile-topbar{animation:slideDown .35s ease both;}
+  .chat-scroll .row{animation:messageIn .3s ease both;}
+  @keyframes slideDown{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes messageIn{from{opacity:0;transform:translateY(7px);}to{opacity:1;transform:translateY(0);}}
+  @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
 </style>
 </head>
 <body>
