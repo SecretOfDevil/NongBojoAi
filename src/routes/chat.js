@@ -120,8 +120,8 @@ router.post("/chat", requireApiKey, requestRateLimiter, upload.array("files", 5)
     // โหลด/สร้าง conversation
     let conv;
     if (conversationId) {
-      conv = await getConversation(conversationId);
-      if (!conv || conv.apiKey !== req.apiKey) {
+      conv = await getConversation(conversationId, req.apiKey, req.keyRecord.tier);
+      if (!conv) {
         return res.status(404).json({ error: "conversation not found" });
       }
     } else {

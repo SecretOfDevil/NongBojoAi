@@ -99,6 +99,8 @@
   .convitem .x{opacity:0;font-size:11px;color:var(--muted);}
   .convitem:hover .x{opacity:1;}
   .convitem .x:hover{color:var(--red);}
+    .convitem .txt{color:var(--muted);font-size:11px;text-decoration:none;}
+    .convitem .txt:hover{color:var(--amber);}
   .empty-convs{color:var(--muted);font-family:var(--mono);font-size:11px;padding:10px;}
 
   .navmenu{padding:8px;border-top:1px solid var(--border);}
@@ -107,6 +109,17 @@
     font-family:var(--mono);font-size:12px;padding:9px 10px;border-radius:7px;cursor:pointer;text-align:left;
     text-decoration:none;
   }
+  .retention-modal{position:fixed;inset:0;z-index:40;display:none;place-items:center;padding:20px;background:rgba(0,0,0,.62);}
+  .retention-modal.open{display:grid;animation:fadeIn .2s ease both;}
+  .retention-card{width:min(100%,420px);background:var(--panel);border:1px solid var(--amber);border-radius:12px;padding:22px;box-shadow:0 18px 50px rgba(0,0,0,.35);animation:popIn .22s ease both;}
+  .retention-card h2{margin:0 0 8px;font:700 16px var(--mono);}
+  .retention-card p{margin:0 0 18px;color:var(--muted);line-height:1.6;}
+  .retention-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+  .retention-actions button{padding:9px 13px;border-radius:7px;cursor:pointer;}
+  .retention-close{background:transparent;border:1px solid var(--border);color:var(--muted);}
+  .retention-upgrade{background:var(--amber);border:1px solid var(--amber);color:#1a1300;font-weight:700;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.98);}to{opacity:1;transform:translateY(0) scale(1);}}
   .navlink:hover{background:var(--panel-2);color:var(--text);}
   .navlink.active{background:var(--panel-3);color:var(--amber);}
 
@@ -262,6 +275,9 @@
   </nav>
 </aside>
 <div class="mobile-backdrop" id="mobileBackdrop"></div>
+<div class="retention-modal" id="retentionModal" role="dialog" aria-modal="true" aria-labelledby="retentionTitle">
+  <div class="retention-card"><h2 id="retentionTitle">สิทธิ์การเก็บประวัติแชท</h2><p>บัญชี Free จะเก็บประวัติแชทไว้ 7 วันเท่านั้น คุณสามารถดาวน์โหลดแชทเป็นไฟล์ TXT ได้ทุกเมื่อ หรืออัปเกรดเพื่อเก็บประวัติแบบไม่จำกัด</p><div class="retention-actions"><button class="retention-close" id="retentionClose" type="button">ปิด</button><button class="retention-upgrade" id="retentionUpgrade" type="button">ดูแผนและอัปเกรด</button></div></div>
+</div>
 
 <script>
 let PROVIDERS = {};
@@ -552,7 +568,11 @@ function startNewChat() {
   chatScroll.innerHTML = '<div class="row system"><div class="bubble">เริ่มแชทใหม่แล้ว พิมพ์ข้อความได้เลย</div></div>';
   document.querySelectorAll('.convitem').forEach(el => el.classList.remove('active'));
   closeMobileMenu();
+  if (accountTier === 'free') document.getElementById('retentionModal').classList.add('open');
 }
+document.getElementById('retentionClose').addEventListener('click', () => document.getElementById('retentionModal').classList.remove('open'));
+document.getElementById('retentionModal').addEventListener('click', (event) => { if (event.target.id === 'retentionModal') event.currentTarget.classList.remove('open'); });
+document.getElementById('retentionUpgrade').addEventListener('click', () => { window.location.href = '/profile.html'; });
 document.getElementById('newChatBtn').addEventListener('click', startNewChat);
 document.getElementById('mobileNewChatBtn').addEventListener('click', startNewChat);
 document.getElementById('mobileNewChatTop').addEventListener('click', startNewChat);
@@ -570,13 +590,15 @@ async function refreshConvList() {
   const markup = data.conversations.map(c => `
     <div class="convitem ${c.id === currentConversationId ? 'active' : ''}" data-id="${c.id}">
       <span class="t">${c.title}</span>
+      <a class="txt" data-download="${c.id}" href="/v1/conversations/${c.id}/download.txt" title="ดาวน์โหลดเป็น TXT">TXT</a>
       <span class="x" data-del="${c.id}">✕</span>
     </div>`).join('');
   lists.forEach(list => {
     list.innerHTML = markup;
     list.querySelectorAll('.convitem').forEach(el => {
-      el.addEventListener('click', (e) => { if (e.target.dataset.del) return; loadConversation(el.dataset.id); closeMobileMenu(); });
+      el.addEventListener('click', (e) => { if (e.target.dataset.del || e.target.dataset.download) return; loadConversation(el.dataset.id); closeMobileMenu(); });
     });
+    list.querySelectorAll('[data-download]').forEach(el => { el.addEventListener('click', (e) => { e.stopPropagation(); }); });
     list.querySelectorAll('[data-del]').forEach(el => {
       el.addEventListener('click', async (e) => {
         e.stopPropagation();

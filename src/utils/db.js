@@ -409,14 +409,25 @@ async function createConversation(apiKey, provider, model, title) {
   return { ...rows[0], messages: [] };
 }
 
-async function getConversation(id) {
-  const { rows } = await q("SELECT * FROM conversations WHERE id = $1", [id]);
+async function getConversation(id, apiKey, tier) {
+  const values = [id];
+  let filter = "";
+  if (apiKey) {
+    values.push(apiKey);
+    filter += ` AND api_key = $${values.length}`;
+  }
+  if (tier === "free") filter += " AND created_at > NOW() - INTERVAL '7 days'";
+  const { rows } = await q(`SELECT * FROM conversations WHERE id = $1${filter}`, values);
   if (!rows[0]) return null;
   const row = rows[0];
   return { ...row, apiKey: row.api_key };
 }
 
 async function listConversations(apiKey) {
+  const record = await getKeyRecord(apiKey);
+  if (record?.tier === "free") {
+    await q("DELETE FROM conversations WHERE api_key = $1 AND created_at <= NOW() - INTERVAL '7 days'", [apiKey]);
+  }
   const { rows } = await q(
     `SELECT id, title, provider, model, updated_at, jsonb_array_length(messages) AS message_count
      FROM conversations WHERE api_key = $1 ORDER BY updated_at DESC`,
