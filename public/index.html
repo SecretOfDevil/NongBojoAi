@@ -22,7 +22,39 @@
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
 
   .app{display:grid;grid-template-columns:250px 1fr;height:100vh;height:100dvh;min-height:0;}
-  @media (max-width: 800px){ .app{grid-template-columns:0 1fr;} .sidebar{display:none;} }
+  .mobile-topbar,.mobile-drawer,.mobile-backdrop{display:none;}
+  @media (max-width: 800px){
+    body{overflow:hidden;}
+    .app{display:block;height:100dvh;}
+    .sidebar{display:none;}
+    .center{height:100dvh;border:0;}
+    .mobile-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);}
+    .mobile-title{font:600 12px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .mobile-menu-btn{width:40px;height:36px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:18px;cursor:pointer;}
+    .mobile-drawer{position:fixed;z-index:20;inset:0 auto 0 0;width:min(86vw,330px);background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(-105%);transition:transform .2s ease;box-shadow:12px 0 30px rgba(0,0,0,.35);}
+    .mobile-drawer.open{transform:translateX(0);}
+    .mobile-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--border);}
+    .mobile-close-btn{background:transparent;border:0;color:var(--muted);font-size:22px;cursor:pointer;}
+    .mobile-newchat{margin:12px 12px 4px;width:calc(100% - 24px);text-align:left;background:var(--panel-2);border:1px solid var(--border);color:var(--text);font:12px var(--mono);padding:10px;border-radius:7px;cursor:pointer;}
+    .mobile-convlist{flex:1;overflow:auto;padding:8px;}
+    .mobile-nav{padding:8px;border-top:1px solid var(--border);}
+    .mobile-nav a{display:block;color:var(--muted);font:12px var(--mono);padding:11px 10px;text-decoration:none;border-radius:7px;}
+    .mobile-nav a:hover,.mobile-nav a:focus{background:var(--panel-2);color:var(--text);}
+    .mobile-backdrop{position:fixed;z-index:19;inset:0;background:rgba(0,0,0,.55);}
+    .mobile-backdrop.open{display:block;}
+    .toolbar{padding:10px 14px;gap:7px;}
+    .toolbar select{min-width:0;flex:1;}
+    .toolbar label{display:none;}
+    .toolbar input{width:62px;}
+    .chat-scroll{padding:14px 12px 18px;gap:12px;}
+    .row{max-width:94%;}
+    .bubble{font-size:14px;padding:10px 12px;}
+    .composer{padding:9px 10px calc(9px + env(safe-area-inset-bottom));}
+    .composer-box{padding:9px;}
+    .composer-row{gap:6px;}
+    .filebtn{font-size:10px;padding:6px 8px;}
+    .sendbtn{padding:9px 14px;}
+  }
 
   /* ===== Sidebar ===== */
   .sidebar{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;}
@@ -154,6 +186,7 @@
 
   <!-- CENTER: chat -->
   <div class="center">
+    <div class="mobile-topbar"><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-label="เปิดเมนู">☰</button><span class="mobile-title" id="mobileTitle">Nong Bojo Ai</span><button class="mobile-menu-btn" id="mobileNewChatTop" type="button" aria-label="แชทใหม่">＋</button></div>
     <div class="toolbar">
       <select id="providerSelect"></select>
       <select id="modelSelect"></select>
@@ -179,6 +212,16 @@
     </div>
   </div>
 </div>
+
+<aside class="mobile-drawer" id="mobileDrawer" aria-label="เมนูมือถือ">
+  <div class="mobile-drawer-head"><div class="brand"><span class="dot"></span><span>Nong Bojo Ai</span></div><button class="mobile-close-btn" id="mobileCloseBtn" type="button" aria-label="ปิดเมนู">×</button></div>
+  <button class="mobile-newchat" id="mobileNewChatBtn" type="button">＋ แชทใหม่</button>
+  <div class="mobile-convlist" id="mobileConvList"><div class="empty-convs">ยังไม่มีแชท</div></div>
+  <nav class="mobile-nav">
+    <a href="/index.html">💬 แชท</a><a href="/usage.html">📊 การใช้งาน / งบประมาณ</a><a href="/profile.html">👤 Profile & Plans</a><a href="/admin.html">🛡️ Admin menu</a><a href="#" id="mobileLogoutLink">🚪 ออกจากระบบ</a>
+  </nav>
+</aside>
+<div class="mobile-backdrop" id="mobileBackdrop"></div>
 
 <script>
 let PROVIDERS = {};
@@ -214,6 +257,15 @@ document.getElementById('logoutLink').addEventListener('click', (e) => {
   localStorage.removeItem('claudeProxyUsername');
   window.location.href = '/login.html';
 });
+
+const mobileDrawer = document.getElementById('mobileDrawer');
+const mobileBackdrop = document.getElementById('mobileBackdrop');
+function closeMobileMenu() { mobileDrawer.classList.remove('open'); mobileBackdrop.classList.remove('open'); }
+function openMobileMenu() { mobileDrawer.classList.add('open'); mobileBackdrop.classList.add('open'); }
+document.getElementById('mobileMenuBtn').addEventListener('click', openMobileMenu);
+document.getElementById('mobileCloseBtn').addEventListener('click', closeMobileMenu);
+mobileBackdrop.addEventListener('click', closeMobileMenu);
+document.getElementById('mobileLogoutLink').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('logoutLink').click(); });
 
 // JavaScript can only deter and report browser shortcuts; it cannot block DevTools.
 let securityNoticeShown = false;
@@ -369,42 +421,46 @@ document.getElementById('message').addEventListener('keydown', (e) => {
 });
 
 // ===== New chat / conversation sidebar =====
-document.getElementById('newChatBtn').addEventListener('click', () => {
+function startNewChat() {
   currentConversationId = null;
   chatScroll.innerHTML = '<div class="row system"><div class="bubble">เริ่มแชทใหม่แล้ว พิมพ์ข้อความได้เลย</div></div>';
   document.querySelectorAll('.convitem').forEach(el => el.classList.remove('active'));
-});
+  closeMobileMenu();
+}
+document.getElementById('newChatBtn').addEventListener('click', startNewChat);
+document.getElementById('mobileNewChatBtn').addEventListener('click', startNewChat);
+document.getElementById('mobileNewChatTop').addEventListener('click', startNewChat);
 
 async function refreshConvList() {
   if (!apiKeyInput.value.trim()) return;
   const res = await fetch('/v1/conversations', { headers: hdr() });
   if (!res.ok) return;
   const data = await res.json();
-  const list = document.getElementById('convList');
+  const lists = [document.getElementById('convList'), document.getElementById('mobileConvList')];
   if (data.conversations.length === 0) {
-    list.innerHTML = '<div class="empty-convs">ยังไม่มีแชท</div>';
+    lists.forEach(list => { list.innerHTML = '<div class="empty-convs">ยังไม่มีแชท</div>'; });
     return;
   }
-  list.innerHTML = data.conversations.map(c => `
+  const markup = data.conversations.map(c => `
     <div class="convitem ${c.id === currentConversationId ? 'active' : ''}" data-id="${c.id}">
       <span class="t">${c.title}</span>
       <span class="x" data-del="${c.id}">✕</span>
     </div>`).join('');
-  list.querySelectorAll('.convitem').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if (e.target.dataset.del) return;
-      loadConversation(el.dataset.id);
+  lists.forEach(list => {
+    list.innerHTML = markup;
+    list.querySelectorAll('.convitem').forEach(el => {
+      el.addEventListener('click', (e) => { if (e.target.dataset.del) return; loadConversation(el.dataset.id); closeMobileMenu(); });
     });
-  });
-  list.querySelectorAll('[data-del]').forEach(el => {
-    el.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await fetch('/v1/conversations/' + el.dataset.del, { method: 'DELETE', headers: hdr() });
-      if (el.dataset.del === currentConversationId) {
-        currentConversationId = null;
-        chatScroll.innerHTML = '<div class="row system"><div class="bubble">แชทถูกลบแล้ว เริ่มแชทใหม่ได้เลย</div></div>';
-      }
-      refreshConvList();
+    list.querySelectorAll('[data-del]').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await fetch('/v1/conversations/' + el.dataset.del, { method: 'DELETE', headers: hdr() });
+        if (el.dataset.del === currentConversationId) {
+          currentConversationId = null;
+          chatScroll.innerHTML = '<div class="row system"><div class="bubble">แชทถูกลบแล้ว เริ่มแชทใหม่ได้เลย</div></div>';
+        }
+        refreshConvList();
+      });
     });
   });
 }
