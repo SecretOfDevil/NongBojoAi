@@ -141,7 +141,7 @@
   <!-- MAIN -->
   <div class="main">
     <div class="page-title">Pay as you go — Usage & Token เครดิต</div>
-    <div class="settings-form" style="margin-bottom:22px"><div class="section-label">ซื้อ Token รายโมเดล (ราคา cost + 20%)</div><select id="buyModel" style="width:100%;padding:9px;margin-bottom:8px"></select><input id="buyInput" type="number" min="0" value="100000" placeholder="Input token" style="margin-bottom:8px"><input id="buyOutput" type="number" min="0" value="100000" placeholder="Output token" style="margin-bottom:8px"><button class="savebtn" id="buyBtn" type="button">สร้าง QR dummy</button><pre id="dummyQr" style="display:none;white-space:pre-wrap;background:#fff;color:#111;padding:12px;border-radius:6px"></pre></div>
+    <div class="settings-form" style="margin-bottom:22px"><div class="section-label">ซื้อ Token รายโมเดล</div><select id="buyModel" style="width:100%;padding:9px;margin-bottom:8px"></select><input id="buyInput" type="number" min="0" value="100000" placeholder="Input token" style="margin-bottom:8px"><input id="buyOutput" type="number" min="0" value="100000" placeholder="Output token" style="margin-bottom:8px"><button class="savebtn" id="buyBtn" type="button">สร้าง QR dummy</button><pre id="dummyQr" style="display:none;white-space:pre-wrap;background:#fff;color:#111;padding:12px;border-radius:6px"></pre></div>
 
     <div class="subtabs">
       <button class="subtab active" data-panel="panelOverview">ภาพรวม</button>
@@ -257,7 +257,7 @@ function hdr() { return { 'x-api-key': apiKeyInput.value.trim() }; }
 function hdrJson() { return { 'x-api-key': apiKeyInput.value.trim(), 'Content-Type': 'application/json' }; }
 let catalog=[];
 fetch('/v1/catalog',{headers:hdr()}).then(r=>r.json()).then(d=>{catalog=Object.entries(d.providers).flatMap(([provider,p])=>p.models.map(m=>({...m,provider,label:`[${m.tier.toUpperCase()}] ${p.label} — ${m.label}`})));const s=document.getElementById('buyModel');s.innerHTML=catalog.map((m,i)=>`<option value="${i}">${m.label}</option>`).join('')}).catch(()=>{});
-document.getElementById('buyBtn').onclick=async()=>{const m=catalog[document.getElementById('buyModel').value];if(!m)return;const r=await fetch('/v1/checkout',{method:'POST',headers:hdrJson(),body:JSON.stringify({provider:m.provider,model:m.id,inputTokens:Number(document.getElementById('buyInput').value),outputTokens:Number(document.getElementById('buyOutput').value)})});const d=await r.json();const q=document.getElementById('dummyQr');q.style.display='block';q.textContent=r.ok?`DUMMY QR\n${d.qrText}\nยอด $${d.amountUsd.toFixed(6)} (รวมกำไร 20%)\n${d.notice}`:d.error};
+document.getElementById('buyBtn').onclick=async()=>{const m=catalog[document.getElementById('buyModel').value];if(!m)return;const r=await fetch('/v1/checkout',{method:'POST',headers:hdrJson(),body:JSON.stringify({provider:m.provider,model:m.id,inputTokens:Number(document.getElementById('buyInput').value),outputTokens:Number(document.getElementById('buyOutput').value)})});const d=await r.json();const q=document.getElementById('dummyQr');q.style.display='block';q.textContent=r.ok?`DUMMY QR\n${d.qrText}\n${d.notice}`:d.error};
 
 // ===== เมนูย่อย (tabs) =====
 const subtabs = document.querySelectorAll('.subtab');

@@ -244,7 +244,7 @@ async function loadProviders() {
 function populateModels() {
   const p = PROVIDERS[providerSelect.value];
   modelSelect.innerHTML = Object.entries(p.models)
-    .map(([key, m]) => { const t = providerSelect.value === 'openrouter' ? 'free' : ((providerSelect.value === 'anthropic' && !key.includes('haiku')) || (providerSelect.value === 'openai' && !key.includes('luna')) || (providerSelect.value === 'gemini' && key.includes('pro')) ? 'max' : 'plus'); const rank={free:0,plus:1,max:2}; return `<option value="${key}" ${rank[accountTier] < rank[t] ? 'disabled' : ''}>[${t.toUpperCase()}] ${m.label} ($${m.input}/$${m.output})</option>`; }).join('');
+    .map(([key, m]) => { const t = providerSelect.value === 'openrouter' ? 'free' : ((providerSelect.value === 'anthropic' && !key.includes('haiku')) || (providerSelect.value === 'openai' && !key.includes('luna')) || (providerSelect.value === 'gemini' && key.includes('pro')) ? 'max' : 'plus'); const rank={free:0,plus:1,max:2}; return `<option value="${key}" ${rank[accountTier] < rank[t] ? 'disabled' : ''}>[${t.toUpperCase()}] ${m.label}</option>`; }).join('');
   modelSelect.value = p.defaultModel;
 }
 providerSelect.addEventListener('change', populateModels);
