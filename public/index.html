@@ -29,6 +29,11 @@
   .app{display:grid;grid-template-columns:250px 1fr;height:100vh;height:100dvh;min-height:0;}
   .app.sidebar-collapsed{grid-template-columns:minmax(0,0) minmax(0,1fr);}
   .app.sidebar-collapsed .sidebar{visibility:hidden;overflow:hidden;}
+  .chat-actions{position:fixed;z-index:12;top:12px;right:16px;display:flex;gap:6px;}
+  .mobile-menu-btn{width:40px;height:36px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:18px;cursor:pointer;}
+  .toolbar-toggle{width:40px;height:36px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:18px;cursor:pointer;}
+  .toolbar{max-height:100px;overflow:hidden;transition:max-height .22s ease,padding .22s ease,opacity .22s ease;}
+  .toolbar.collapsed{max-height:0;padding-top:0;padding-bottom:0;border-bottom:0;opacity:0;pointer-events:none;}
   .mobile-drawer,.mobile-backdrop{display:none;}
   @media (max-width: 800px){
     body{overflow:hidden;}
@@ -36,6 +41,7 @@
     .sidebar{display:none;}
     .app.sidebar-collapsed{display:block;}
     .center{height:100%;min-height:0;border:0;}
+    .chat-actions{top:10px;right:10px;}
     .mobile-title{font:600 12px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .mobile-menu-btn{width:40px;height:36px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:18px;cursor:pointer;}
     .mobile-drawer{position:fixed;z-index:20;inset:0 auto 0 0;width:min(86vw,330px);background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(-105%);transition:transform .2s ease;box-shadow:12px 0 30px rgba(0,0,0,.35);}
@@ -54,6 +60,7 @@
     .mobile-backdrop{position:fixed;z-index:19;inset:0;background:rgba(0,0,0,.55);}
     .mobile-backdrop.open{display:block;}
     .toolbar{padding:10px 14px;gap:7px;}
+    .toolbar.collapsed{max-height:0;}
     .toolbar select{min-width:0;flex:1;}
     .toolbar label{display:none;}
     .toolbar input{width:62px;}
@@ -238,6 +245,7 @@
 
   <!-- CENTER: chat -->
   <div class="center">
+    <div class="chat-actions"><button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-label="เปิดเมนู">☰</button><button class="toolbar-toggle" id="toolbarToggle" type="button" aria-label="ย่อแถบเครื่องมือ" aria-expanded="true">☰</button><button class="mobile-menu-btn" id="mobileNewChatTop" type="button" aria-label="แชทใหม่">＋</button></div>
     <div class="toolbar" id="chatToolbar">
       <select id="providerSelect"></select>
       <select id="modelSelect"></select>
@@ -292,6 +300,20 @@ const fileInput = document.getElementById('fileInput');
 const fileList = document.getElementById('fileList');
 const sendBtn = document.getElementById('sendBtn');
 const limitBanner = document.getElementById('limitBanner');
+const chatToolbar = document.getElementById('chatToolbar');
+const toolbarToggle = document.getElementById('toolbarToggle');
+const app = document.querySelector('.app');
+const mobileMenuButton = document.getElementById('mobileMenuBtn');
+
+function setToolbarOpen(isOpen) {
+  chatToolbar.classList.toggle('collapsed', !isOpen);
+  toolbarToggle.setAttribute('aria-expanded', String(isOpen));
+  toolbarToggle.setAttribute('aria-label', isOpen ? 'ย่อแถบเครื่องมือ' : 'เปิดแถบเครื่องมือ');
+  toolbarToggle.textContent = isOpen ? '☰' : '☷';
+}
+setToolbarOpen(window.innerWidth > 800);
+toolbarToggle.addEventListener('click', () => setToolbarOpen(chatToolbar.classList.contains('collapsed')));
+window.addEventListener('resize', () => { if (window.innerWidth > 800 && chatToolbar.classList.contains('collapsed')) setToolbarOpen(true); });
 
 function hdr() { return { 'x-api-key': apiKeyInput.value.trim() }; }
 
@@ -336,6 +358,16 @@ const mobileDrawer = document.getElementById('mobileDrawer');
 const mobileBackdrop = document.getElementById('mobileBackdrop');
 function closeMobileMenu() { mobileDrawer.classList.remove('open'); mobileBackdrop.classList.remove('open'); }
 function openMobileMenu() { mobileDrawer.classList.add('open'); mobileBackdrop.classList.add('open'); }
+function toggleLeftSidebar() {
+  if (window.innerWidth <= 800) {
+    mobileDrawer.classList.contains('open') ? closeMobileMenu() : openMobileMenu();
+    return;
+  }
+  const collapsed = app.classList.toggle('sidebar-collapsed');
+  mobileMenuButton.setAttribute('aria-label', collapsed ? 'เปิด sidebar' : 'ปิด sidebar');
+  mobileMenuButton.setAttribute('aria-expanded', String(!collapsed));
+}
+mobileMenuButton.addEventListener('click', toggleLeftSidebar);
 document.getElementById('mobileCloseBtn').addEventListener('click', closeMobileMenu);
 mobileBackdrop.addEventListener('click', closeMobileMenu);
 document.getElementById('mobileLogoutLink').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('logoutLink').click(); });
@@ -578,6 +610,7 @@ document.getElementById('retentionModal').addEventListener('click', (event) => {
 document.getElementById('retentionUpgrade').addEventListener('click', () => { window.location.href = '/profile.html'; });
 document.getElementById('newChatBtn').addEventListener('click', startNewChat);
 document.getElementById('mobileNewChatBtn').addEventListener('click', startNewChat);
+document.getElementById('mobileNewChatTop').addEventListener('click', startNewChat);
 
 async function refreshConvList() {
   if (!apiKeyInput.value.trim()) return;
