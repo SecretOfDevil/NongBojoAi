@@ -209,6 +209,11 @@
   }
   .sendbtn:hover{filter:brightness(1.08);}
   .sendbtn:disabled{opacity:0.45;cursor:not-allowed;}
+  .repo-row{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border)}
+  .repo-row input{flex:1;min-width:0;background:transparent;border:0;color:var(--text);outline:0;font-family:var(--mono);font-size:12px}
+  .repo-row button{border:1px solid var(--amber);background:transparent;color:var(--amber);padding:6px 10px;border-radius:5px;cursor:pointer;white-space:nowrap}
+  .repo-row button:disabled{opacity:.5;cursor:wait}.repo-row span{color:var(--muted);font-family:var(--mono);font-size:11px;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @media(max-width:600px){.repo-row{flex-wrap:wrap}.repo-row input{flex-basis:100%}.repo-row span{max-width:100%}}
   input[type=number]{background:var(--panel-2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 8px;border-radius:6px;width:70px;}
   .chat-scroll .row{animation:messageIn .3s ease both;}
   @keyframes slideDown{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
@@ -262,6 +267,7 @@
 
     <div class="composer">
       <div class="composer-box">
+        <div class="repo-row"><input id="repoUrl" type="url" placeholder="วางลิงก์ GitHub repository (public)" /><button id="loadRepoBtn" type="button">เพิ่ม Repo</button><span id="repoStatus"></span></div>
         <textarea id="message" placeholder="พิมพ์ข้อความ... (Enter เพื่อส่ง, Shift+Enter ขึ้นบรรทัดใหม่)"></textarea>
         <div class="composer-row">
           <label class="filebtn" for="fileInput">📎 แนบไฟล์/รูป</label>
@@ -295,6 +301,7 @@ let currentConversationId = null;
 let accountTier = 'free';
 let purchasedModels = [];
 let modelStatuses = new Map();
+let repositoryContext = '';
 
 const apiKeyInput = document.getElementById('apiKey');
 const providerSelect = document.getElementById('providerSelect');
@@ -532,7 +539,7 @@ async function sendMessage() {
   const model = modelSelect.value;
   const maxTokens = document.getElementById('maxTokens').value;
 
-  if (!message && fileInput.files.length === 0) return;
+  if (!message && fileInput.files.length === 0 && !repositoryContext) return;
   if (!apiKeyInput.value.trim()) { window.location.href = '/login.html'; return; }
 
   addBubble('user', message || '(แนบไฟล์)');
@@ -545,6 +552,7 @@ async function sendMessage() {
   fd.append('model', model);
   fd.append('max_tokens', maxTokens);
   if (currentConversationId) fd.append('conversationId', currentConversationId);
+  if (repositoryContext) fd.append('repositoryContext', repositoryContext);
   Array.from(fileInput.files).forEach(f => fd.append('files', f));
 
   sendBtn.disabled = true;
@@ -585,6 +593,23 @@ async function sendMessage() {
   }
 }
 
+document.getElementById('loadRepoBtn').addEventListener('click', async () => {
+  const url = document.getElementById('repoUrl').value.trim();
+  const status = document.getElementById('repoStatus');
+  if (!url) { status.textContent = 'กรุณาวางลิงก์ repo'; return; }
+  const button = document.getElementById('loadRepoBtn');
+  button.disabled = true; status.textContent = 'กำลังอ่านไฟล์ใน repo...';
+  try {
+    const res = await fetch('/v1/repository/context', { method: 'POST', headers: { ...hdr(), 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'โหลด repository ไม่สำเร็จ');
+    repositoryContext = data.context;
+    status.textContent = `พร้อมแล้ว: ${data.repository} · ${data.files} ไฟล์${data.truncated ? ' · context ถูกตัดบางส่วน' : ''}`;
+    document.getElementById('repoUrl').readOnly = true;
+  } catch (error) { repositoryContext = ''; status.textContent = error.message; }
+  finally { button.disabled = false; }
+});
+
 async function downloadResponse(responseId) {
   const res = await fetch('/v1/download/' + responseId, { headers: hdr() });
   if (!res.ok) { alert('โหลดไฟล์ไม่สำเร็จ'); return; }
@@ -603,6 +628,10 @@ document.getElementById('message').addEventListener('keydown', (e) => {
 
 // ===== New chat / conversation sidebar =====
 function startNewChat() {
+  repositoryContext = '';
+  document.getElementById('repoUrl').value = '';
+  document.getElementById('repoUrl').readOnly = false;
+  document.getElementById('repoStatus').textContent = '';
   currentConversationId = null;
   chatScroll.innerHTML = '<div class="row system"><div class="bubble">เริ่มแชทใหม่แล้ว พิมพ์ข้อความได้เลย</div></div>';
   document.querySelectorAll('.convitem').forEach(el => el.classList.remove('active'));

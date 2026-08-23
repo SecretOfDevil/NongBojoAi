@@ -13,6 +13,7 @@ const statsRoute = require("./src/routes/statsRoute");
 const adminLogsRoute = require("./src/routes/adminLogsRoute");
 const securityRoute = require("./src/routes/securityRoute");
 const billingRoute = require("./src/routes/billingRoute");
+const repositoryRoute = require("./src/routes/repository");
 const { requireApiKey } = require("./src/middleware/auth");
 const { getModelStatuses } = require("./src/utils/db");
 const { PROVIDERS } = require("./src/config/pricing");
@@ -80,6 +81,7 @@ app.use("/auth", authRoutes);
 app.use("/v1", statsRoute);
 app.use("/v1", securityRoute);
 app.use("/v1", billingRoute);
+app.use("/v1", repositoryRoute);
 
 // error handler กลาง (จับ error จาก multer เช่นไฟล์ใหญ่เกิน/ชนิดไฟล์ผิด)
 app.use((err, req, res, next) => {
