@@ -63,11 +63,11 @@
         <span class="tag">MAX</span>
         <h2>Pro tier · 499 THB/month</h2>
         <p>ประมาณ 400 แชทต่อเดือน พร้อมโมเดลพรีเมียมและเก็บประวัติแชทได้ตลอด</p>
-        <ul class="features"><li>Claude Sonnet / Opus / Fable</li><li>GPT-5.6 Terra / Sol</li><li>Gemini 3.1 Pro</li><li>เก็บประวัติแชทได้ตลอด</li></ul>
+        <ul class="features"><li>Claude Sonnet / Opus</li><li>GPT-5.6 Terra / Sol</li><li>Gemini 3.1 Pro</li><li>Fable 5 ซื้อแยกผ่าน top-up</li><li>เก็บประวัติแชทได้ตลอด</li></ul>
         <button data-tier="max">Choose max</button>
       </section>
     </div>
-    <section id="payment"></section>
+    <p><a href="/payment.html">ไปหน้าชำระเงินและเติม model</a></p>
   </main>
   <script>
     const apiKey = localStorage.getItem('claudeProxyApiKey');
@@ -107,6 +107,8 @@
     }
 
     async function chooseTier(tier) {
+      window.location.href = `/payment.html?kind=tier&tier=${encodeURIComponent(tier)}`;
+      return;
       const response = await fetch('/v1/checkout', { method: 'POST', headers, body: JSON.stringify({ tier }) });
       const data = await response.json();
       if (!response.ok) { window.alert(data.error || 'Checkout failed'); return; }

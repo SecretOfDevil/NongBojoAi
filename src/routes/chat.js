@@ -5,7 +5,7 @@ const { upload } = require("../middleware/upload");
 const { requireApiKey } = require("../middleware/auth");
 const { requestRateLimiter } = require("../middleware/rateLimiter");
 const { getProvider, calcCostUSD, DEFAULT_PROVIDER, round, getModelTier } = require("../config/pricing");
-const { recordUsage, consumeTokens, refundTokens, sumUsageSince, createConversation, getConversation, appendMessage } = require("../utils/db");
+const { recordUsage, consumeTokens, refundTokens, sumUsageSince, createConversation, getConversation, appendMessage, isModelOnline } = require("../utils/db");
 const { fileToContentBlock, cleanupFiles } = require("../utils/fileToContentBlock");
 const { callProvider, checkCapability } = require("../providers");
 const { estimateHistoryInputTokens } = require("../utils/estimateTokens");
@@ -96,9 +96,16 @@ router.post("/chat", requireApiKey, requestRateLimiter, upload.array("files", 5)
         availableModels: Object.keys(providerConf.models),
       });
     }
+    if (!(await isModelOnline(provider, chosenModel))) {
+      return res.status(503).json({ error: "โมเดลนี้ออฟไลน์ชั่วคราว กรุณาเลือกโมเดลอื่น", code: "MODEL_OFFLINE" });
+    }
     const ranks = { free: 0, plus: 1, max: 2 };
     const requiredTier = getModelTier(provider, chosenModel);
-    if (ranks[req.keyRecord.tier] < ranks[requiredTier]) {
+    const purchased = req.keyRecord.purchasedModels.includes(`${provider}/${chosenModel}`);
+    if (requiredTier === "topup" && !purchased) {
+      return res.status(403).json({ error: "โมเดลนี้ต้องซื้อผ่าน top-up ก่อนใช้งาน", code: "MODEL_TOPUP_REQUIRED" });
+    }
+    if (requiredTier !== "topup" && ranks[req.keyRecord.tier] < ranks[requiredTier] && !purchased) {
       return res.status(403).json({ error: `โมเดลนี้ต้องใช้ ${requiredTier.toUpperCase()} tier`, code: "MODEL_TIER_LOCKED", requiredTier });
     }
     if (!message && files.length === 0) {

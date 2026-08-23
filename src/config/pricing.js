@@ -14,7 +14,7 @@ const PROVIDERS = {
       "claude-opus-4-8": { label: "Claude Opus 4.8", input: 5.0, output: 25.0 },
       "claude-sonnet-5": { label: "Claude Sonnet 5", input: 2.0, output: 10.0 },
       "claude-haiku-4-5-20251001": { label: "Claude Haiku 4.5", input: 1.0, output: 5.0 },
-      "claude-fable-5": { label: "Claude Fable 5", input: 10.0, output: 50.0 },
+      "claude-fable-5": { label: "Claude Fable 5 (ซื้อแยกด้วย top-up)", input: 10.0, output: 50.0, topupOnly: true },
     },
   },
   openai: {
@@ -103,6 +103,7 @@ function isValidModel(provider, model) {
   return !!getPricing(provider, model);
 }
 function getModelTier(provider, model) {
+  if (getPricing(provider, model)?.topupOnly) return "topup";
   if (provider === "openrouter") return "free";
   const budgetOpenAI = ["gpt-5-nano", "gpt-5-mini", "gpt-4.1-nano", "gpt-4.1-mini", "gpt-4o-mini", "gpt-5.6-luna"];
   if ((provider === "anthropic" && !model.includes("haiku")) || (provider === "openai" && !budgetOpenAI.includes(model)) || (provider === "gemini" && model.includes("pro"))) return "max";

@@ -1,6 +1,6 @@
 const express = require("express");
 const { requireApiKey } = require("../middleware/auth");
-const { PROVIDERS, getPricing } = require("../config/pricing");
+const { PROVIDERS, getPricing, getModelTier } = require("../config/pricing");
 const { createPurchaseOrder, submitPaymentSlip, logAuditEvent } = require("../utils/db");
 const QRCode = require("qrcode");
 const generatePromptPayPayload = require("promptpay-qr");
@@ -9,11 +9,8 @@ const router = express.Router();
 const MARKUP = 2;
 const USD_TO_THB = Number(process.env.USD_TO_THB || 36.5);
 const slipUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (req,file,cb) => cb(null, file.mimetype.startsWith("image/")) });
-const tierFor = (provider, model) => {
-  const budgetOpenAI = ["gpt-5-nano", "gpt-5-mini", "gpt-4.1-nano", "gpt-4.1-mini", "gpt-4o-mini", "gpt-5.6-luna"];
-  return provider === "openrouter" ? "free" : (provider === "anthropic" && !model.includes("haiku")) || (provider === "openai" && !budgetOpenAI.includes(model)) || (provider === "gemini" && model.includes("pro")) ? "max" : "plus";
-};
-router.get("/profile", requireApiKey, (req,res) => res.json({ name:req.keyRecord.name, tier:req.keyRecord.tier, tokenBalance:req.keyRecord.tokenBalance, tokenPlanLimit:req.keyRecord.tokenPlanLimit, markupPercent:100, plans:{ plus:{priceThb:299,chatPerMonth:100}, max:{priceThb:499,chatPerMonth:400} } }));
+const tierFor = getModelTier;
+router.get("/profile", requireApiKey, (req,res) => res.json({ name:req.keyRecord.name, tier:req.keyRecord.tier, tokenBalance:req.keyRecord.tokenBalance, tokenPlanLimit:req.keyRecord.tokenPlanLimit, purchasedModels:req.keyRecord.purchasedModels, markupPercent:100, plans:{ plus:{priceThb:299,chatPerMonth:100}, max:{priceThb:499,chatPerMonth:400} } }));
 router.get("/catalog", requireApiKey, (req,res) => res.json({ markupPercent:20, providers: Object.fromEntries(Object.entries(PROVIDERS).map(([p,c]) => [p,{label:c.label,models:Object.entries(c.models).map(([id,m])=>({id,label:m.label,input:m.input,output:m.output,tier:tierFor(p,id)}))}])) }));
 router.post("/checkout", requireApiKey, async (req,res,next) => { try {
   const { provider, model, inputTokens=0, outputTokens=0, tier } = req.body || {};
@@ -30,7 +27,7 @@ router.post("/checkout", requireApiKey, async (req,res,next) => { try {
   await logAuditEvent({eventType:"checkout_created",username:req.keyRecord.name,ipAddress:req.ip,method:req.method,path:req.path,statusCode:201,metadata:{orderId:order.id,kind:order.kind,amountUsd:Number(order.amount_usd)}});
   const qrText = amountThb ? generatePromptPayPayload(String(process.env.PROMPTPAY_ID).replace(/\D/g, ""), { amount: amountThb }) : `DUMMY-PAYMENT:${order.id}`;
   const qrDataUrl = await QRCode.toDataURL(qrText, { width: 260, margin: 2 });
-  res.status(201).json({orderId:order.id,status:"pending",amountThb,amountUsd:Number(order.amount_usd),tokens:input+output,model,qrText,qrDataUrl,notice: amountThb ? "สแกนและชำระตามยอด จากนั้นอัปโหลดสลิปเพื่อรอ Admin อนุมัติ" : "QR นี้เป็นตัวอย่าง ยังไม่มีการตัดเงินหรือเติมเครดิต"});
+  res.status(201).json({orderId:order.id,status:"pending",amountThb,amountUsd:Number(order.amount_usd),tokens:input+output,model,qrText,qrDataUrl,expiresAt:order.expires_at,notice: amountThb ? "สแกนและชำระตามยอด จากนั้นอัปโหลดสลิปเพื่อรอ Admin อนุมัติ" : "QR นี้เป็นตัวอย่าง ยังไม่มีการตัดเงินหรือเติมเครดิต"});
 } catch(e){next(e)} });
 router.post("/orders/:id/slip", requireApiKey, slipUpload.single("slip"), async (req,res,next) => { try { if (!req.file) return res.status(400).json({error:"กรุณาแนบรูปสลิป"}); const order=await submitPaymentSlip(req.params.id,req.apiKey,req.file); if(!order)return res.status(404).json({error:"ไม่พบ order หรือส่งสลิปไปแล้ว"}); await logAuditEvent({eventType:"payment_slip_submitted",username:req.keyRecord.name,ipAddress:req.ip,method:req.method,path:req.path,statusCode:201,metadata:{orderId:req.params.id}}); res.status(201).json({order}); } catch(e){next(e)} });
 module.exports = router;

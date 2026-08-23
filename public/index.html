@@ -237,6 +237,8 @@
       <a class="navlink active" href="/index.html">💬 แชท</a>
       <a class="navlink" href="/usage.html">📊 การใช้งาน / งบประมาณ</a>
       <a class="navlink" href="/profile.html">👤 Profile & Plans</a>
+      <a class="navlink" href="/payment.html">💳 ชำระเงิน / Top-up</a>
+      <a class="navlink" href="/status.html">● Model status</a>
       <a class="navlink" href="/admin.html">🛡️ Admin menu</a>
       <a class="navlink" href="#" id="logoutLink">🚪 ออกจากระบบ</a>
       <button class="theme-btn" id="themeBtn" type="button">☀️ Light mode</button>
@@ -279,7 +281,7 @@
   <button class="theme-btn mobile-theme-btn" id="mobileThemeBtn" type="button">☀️ Light mode</button>
   <div class="mobile-convlist" id="mobileConvList"><div class="empty-convs">ยังไม่มีแชท</div></div>
   <nav class="mobile-nav">
-    <a href="/index.html">💬 แชท</a><a href="/usage.html">📊 การใช้งาน / งบประมาณ</a><a href="/profile.html">👤 Profile & Plans</a><a href="/admin.html">🛡️ Admin menu</a><a href="#" id="mobileLogoutLink">🚪 ออกจากระบบ</a>
+    <a href="/index.html">💬 แชท</a><a href="/usage.html">📊 การใช้งาน / งบประมาณ</a><a href="/profile.html">👤 Profile & Plans</a><a href="/payment.html">💳 ชำระเงิน / Top-up</a><a href="/status.html">● Model status</a><a href="/admin.html">🛡️ Admin menu</a><a href="#" id="mobileLogoutLink">🚪 ออกจากระบบ</a>
   </nav>
 </aside>
 <div class="mobile-backdrop" id="mobileBackdrop"></div>
@@ -291,6 +293,8 @@
 let PROVIDERS = {};
 let currentConversationId = null;
 let accountTier = 'free';
+let purchasedModels = [];
+let modelStatuses = new Map();
 
 const apiKeyInput = document.getElementById('apiKey');
 const providerSelect = document.getElementById('providerSelect');
@@ -401,7 +405,7 @@ async function loadProviders() {
 function populateModels() {
   const p = PROVIDERS[providerSelect.value];
   modelSelect.innerHTML = Object.entries(p.models)
-    .map(([key, m]) => { const budgetOpenAI=['gpt-5-nano','gpt-5-mini','gpt-4.1-nano','gpt-4.1-mini','gpt-4o-mini','gpt-5.6-luna']; const t = providerSelect.value === 'openrouter' ? 'free' : ((providerSelect.value === 'anthropic' && !key.includes('haiku')) || (providerSelect.value === 'openai' && !budgetOpenAI.includes(key)) || (providerSelect.value === 'gemini' && key.includes('pro')) ? 'max' : 'plus'); const rank={free:0,plus:1,max:2}; return `<option value="${key}" ${rank[accountTier] < rank[t] ? 'disabled' : ''}>[${t.toUpperCase()}] ${m.label}</option>`; }).join('');
+    .map(([key, m]) => { const budgetOpenAI=['gpt-5-nano','gpt-5-mini','gpt-4.1-nano','gpt-4.1-mini','gpt-4o-mini','gpt-5.6-luna']; const t = m.topupOnly ? 'topup' : providerSelect.value === 'openrouter' ? 'free' : ((providerSelect.value === 'anthropic' && !key.includes('haiku')) || (providerSelect.value === 'openai' && !budgetOpenAI.includes(key)) || (providerSelect.value === 'gemini' && key.includes('pro')) ? 'max' : 'plus'); const rank={free:0,plus:1,max:2}; const owned=purchasedModels.includes(`${providerSelect.value}/${key}`); const online=modelStatuses.get(`${providerSelect.value}/${key}`) !== false; const locked=(t==='topup' ? !owned : rank[accountTier] < rank[t]) && !owned; return `<option value="${key}" ${(locked || !online) ? 'disabled' : ''}>[${online?'ONLINE':'OFFLINE'} · ${t.toUpperCase()}] ${m.label}${owned?' · TOP-UP':''}</option>`; }).join('');
   modelSelect.value = p.defaultModel;
 }
 providerSelect.addEventListener('change', populateModels);
@@ -684,6 +688,9 @@ async function checkBudgetWarning() {
 (async function init() {
   const profile = await fetch('/v1/profile', { headers: hdr() }).then(r => r.json()).catch(() => ({}));
   accountTier = profile.tier || 'free';
+  purchasedModels = profile.purchasedModels || [];
+  const status = await fetch('/v1/model-status', { headers: hdr() }).then(r => r.json()).catch(() => ({ models: [] }));
+  modelStatuses = new Map((status.models || []).map(model => [`${model.provider}/${model.model}`, model.online]));
   document.querySelectorAll('#userTier,#mobileUserTier').forEach(element => { element.textContent = accountTier.toUpperCase(); });
   await loadProviders();
   checkBudgetWarning();

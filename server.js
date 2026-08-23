@@ -13,6 +13,8 @@ const statsRoute = require("./src/routes/statsRoute");
 const adminLogsRoute = require("./src/routes/adminLogsRoute");
 const securityRoute = require("./src/routes/securityRoute");
 const billingRoute = require("./src/routes/billingRoute");
+const { requireApiKey } = require("./src/middleware/auth");
+const { getModelStatuses } = require("./src/utils/db");
 const { PROVIDERS } = require("./src/config/pricing");
 const { initDb, logAuditEvent } = require("./src/utils/db");
 const rateLimit = require("express-rate-limit");
@@ -63,6 +65,9 @@ app.get("/v1/models", (req, res) => {
     out[key] = { label: conf.label, defaultModel: conf.defaultModel, capabilities: conf.capabilities, models: conf.models };
   }
   res.json({ providers: out });
+});
+app.get("/v1/model-status", requireApiKey, async (req, res, next) => {
+  try { res.json({ models: await getModelStatuses(), purchasedModels: req.keyRecord.purchasedModels }); } catch (e) { next(e); }
 });
 
 app.use("/v1", chatRoute);

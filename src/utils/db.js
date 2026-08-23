@@ -10,6 +10,7 @@
 
 const { Pool } = require("pg");
 const crypto = require("crypto");
+const { PROVIDERS } = require("../config/pricing");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -101,6 +102,15 @@ async function initDb() {
       input_tokens BIGINT NOT NULL DEFAULT 0, output_tokens BIGINT NOT NULL DEFAULT 0,
       amount_usd NUMERIC(14,6) NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS model_status (
+      provider TEXT NOT NULL, model TEXT NOT NULL, online BOOLEAN NOT NULL DEFAULT TRUE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (provider, model)
+    );
+    CREATE TABLE IF NOT EXISTS model_entitlements (
+      api_key TEXT NOT NULL REFERENCES api_keys(api_key) ON DELETE CASCADE,
+      provider TEXT NOT NULL, model TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (api_key, provider, model)
+    );
     CREATE INDEX IF NOT EXISTS purchase_orders_api_key_created_at ON purchase_orders (api_key, created_at DESC);
     ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS amount_thb NUMERIC(12,2) NOT NULL DEFAULT 0;
     ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS slip_data BYTEA;
@@ -108,12 +118,19 @@ async function initDb() {
     ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
     ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
     ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS review_note TEXT;
+    ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
     ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS account_tier TEXT NOT NULL DEFAULT 'free';
     ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS token_balance BIGINT NOT NULL DEFAULT 0;
     ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS token_plan_limit BIGINT NOT NULL DEFAULT 0;
     ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS token_plan_started_at TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT FALSE;
   `);
+
+  for (const [provider, config] of Object.entries(PROVIDERS)) {
+    for (const model of Object.keys(config.models)) {
+      await q("INSERT INTO model_status (provider, model, online) VALUES ($1, $2, TRUE) ON CONFLICT DO NOTHING", [provider, model]);
+    }
+  }
 
   const { rowCount } = await q("SELECT 1 FROM api_keys LIMIT 1");
   if (rowCount === 0) {
@@ -133,6 +150,7 @@ async function getKeyRecord(apiKey) {
   const { rows } = await q("SELECT * FROM api_keys WHERE api_key = $1", [apiKey]);
   if (!rows[0]) return null;
   const r = rows[0];
+  const { rows: entitlementRows } = await q("SELECT provider, model FROM model_entitlements WHERE api_key=$1", [apiKey]);
   return {
     name: r.name,
     createdAt: r.created_at,
@@ -143,6 +161,7 @@ async function getKeyRecord(apiKey) {
     tokenBalance: Number(r.token_balance || 0),
     tokenPlanLimit: Number(r.token_plan_limit || 0),
     tokenPlanStartedAt: r.token_plan_started_at,
+    purchasedModels: entitlementRows.map((row) => `${row.provider}/${row.model}`),
   };
 }
 
@@ -299,8 +318,8 @@ async function getAuditLogs({ limit = 100, afterId = 0 } = {}) {
 async function createPurchaseOrder(order) {
   const id = "ord_" + Date.now().toString(36) + crypto.randomBytes(4).toString("hex");
   const { rows } = await q(
-    `INSERT INTO purchase_orders (id,api_key,kind,tier,provider,model,input_tokens,output_tokens,amount_usd,amount_thb)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    `INSERT INTO purchase_orders (id,api_key,kind,tier,provider,model,input_tokens,output_tokens,amount_usd,amount_thb,expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW() + INTERVAL '10 minutes') RETURNING *`,
     [id, order.apiKey, order.kind, order.tier || null, order.provider || null, order.model || null,
      order.inputTokens || 0, order.outputTokens || 0, order.amountUsd, order.amountThb || 0]
   );
@@ -310,18 +329,18 @@ async function createPurchaseOrder(order) {
 async function submitPaymentSlip(id, apiKey, file) {
   const { rows } = await q(
     `UPDATE purchase_orders SET slip_data=$3, slip_mime=$4, submitted_at=NOW(), status='waiting_approval'
-     WHERE id=$1 AND api_key=$2 AND status='pending' RETURNING id,status`,
+    WHERE id=$1 AND api_key=$2 AND status='pending' AND expires_at > NOW() RETURNING id,status,expires_at`,
     [id, apiKey, file.buffer, file.mimetype]
   );
   return rows[0] || null;
 }
 async function listPaymentApprovals() {
   const { rows } = await q(
-    `SELECT o.id,o.kind,o.tier,o.provider,o.model,o.input_tokens,o.output_tokens,o.amount_thb,o.status,o.created_at,o.submitted_at,o.slip_mime,k.name,k.token_balance,k.token_plan_limit
+    `SELECT o.id,o.kind,o.tier,o.provider,o.model,o.input_tokens,o.output_tokens,o.amount_thb,o.status,o.created_at,o.submitted_at,o.expires_at,o.slip_mime,k.name,k.token_balance,k.token_plan_limit
      FROM purchase_orders o JOIN api_keys k ON k.api_key=o.api_key
      WHERE o.status='waiting_approval' ORDER BY o.submitted_at ASC`
   );
-  return rows.map(r => ({ id:r.id, kind:r.kind, tier:r.tier, provider:r.provider, model:r.model, tokens:Number(r.input_tokens || 0) + Number(r.output_tokens || 0), amountThb:Number(r.amount_thb), status:r.status, createdAt:r.created_at, submittedAt:r.submitted_at, slipMime:r.slip_mime, name:r.name, tokenBalance:Number(r.token_balance || 0), tokenPlanLimit:Number(r.token_plan_limit || 0) }));
+  return rows.map(r => ({ id:r.id, kind:r.kind, tier:r.tier, provider:r.provider, model:r.model, tokens:Number(r.input_tokens || 0) + Number(r.output_tokens || 0), amountThb:Number(r.amount_thb), status:r.status, createdAt:r.created_at, submittedAt:r.submitted_at, expiresAt:r.expires_at, slipMime:r.slip_mime, name:r.name, tokenBalance:Number(r.token_balance || 0), tokenPlanLimit:Number(r.token_plan_limit || 0) }));
 }
 async function getPaymentSlip(id) {
   const { rows } = await q("SELECT slip_data,slip_mime FROM purchase_orders WHERE id=$1 AND status='waiting_approval'", [id]);
@@ -331,7 +350,7 @@ async function reviewPaymentOrder(id, approved, note = "") {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query("SELECT * FROM purchase_orders WHERE id=$1 AND status='waiting_approval' FOR UPDATE", [id]);
+    const { rows } = await client.query("SELECT * FROM purchase_orders WHERE id=$1 AND status='waiting_approval' AND expires_at > NOW() FOR UPDATE", [id]);
     const order = rows[0];
     if (!order) { await client.query("ROLLBACK"); return null; }
     if (approved && order.kind === "tier") {
@@ -340,11 +359,25 @@ async function reviewPaymentOrder(id, approved, note = "") {
     }
     if (approved && order.kind === "token") {
       await client.query("UPDATE api_keys SET token_balance=token_balance+$2 WHERE api_key=$1", [order.api_key, Number(order.input_tokens || 0) + Number(order.output_tokens || 0)]);
+      await client.query("INSERT INTO model_entitlements (api_key, provider, model) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", [order.api_key, order.provider, order.model]);
     }
     await client.query("UPDATE purchase_orders SET status=$2, reviewed_at=NOW(), review_note=$3, slip_data=NULL, slip_mime=NULL WHERE id=$1", [id, approved ? "approved" : "rejected", note]);
     await client.query("COMMIT");
     return { ...order, status: approved ? "approved" : "rejected" };
   } catch (err) { await client.query("ROLLBACK"); throw err; } finally { client.release(); }
+}
+
+async function getModelStatuses() {
+  const { rows } = await q("SELECT provider, model, online, updated_at FROM model_status ORDER BY provider, model");
+  return rows;
+}
+async function setModelStatus(provider, model, online) {
+  const { rows } = await q("UPDATE model_status SET online=$3, updated_at=NOW() WHERE provider=$1 AND model=$2 RETURNING provider,model,online,updated_at", [provider, model, online]);
+  return rows[0] || null;
+}
+async function isModelOnline(provider, model) {
+  const { rows } = await q("SELECT online FROM model_status WHERE provider=$1 AND model=$2", [provider, model]);
+  return rows.length === 0 || rows[0].online;
 }
 
 // ===== Usage stats (กราฟ) =====
@@ -562,7 +595,7 @@ module.exports = {
   readDb, writeDb,
   getKeyRecord, createKey, updateKeyLimits, deleteKey, listAccounts, setAccountTier,
   recordUsage, consumeTokens, refundTokens, sumUsageSince,
-  getAllLogs, logAuditEvent, getAuditLogs, createPurchaseOrder, submitPaymentSlip, listPaymentApprovals, getPaymentSlip, reviewPaymentOrder, getUsageStats, updateOwnLimits,
+  getAllLogs, logAuditEvent, getAuditLogs, createPurchaseOrder, submitPaymentSlip, listPaymentApprovals, getPaymentSlip, reviewPaymentOrder, getModelStatuses, setModelStatus, isModelOnline, getUsageStats, updateOwnLimits,
   createConversation, getConversation, listConversations, appendMessage, deleteConversation,
   getUser, createUser, authenticateUser,
 };
