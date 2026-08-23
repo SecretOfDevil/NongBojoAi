@@ -421,7 +421,6 @@ async function reviewPaymentOrder(id, approved, note = "") {
       await client.query("UPDATE api_keys SET account_tier=$2, token_balance=$3, token_plan_limit=$3, token_plan_started_at=NOW() WHERE api_key=$1", [order.api_key, order.tier, planLimit]);
     }
     if (approved && order.kind === "token") {
-      await client.query("UPDATE api_keys SET token_balance=token_balance+$2 WHERE api_key=$1", [order.api_key, Number(order.input_tokens || 0) + Number(order.output_tokens || 0)]);
       await client.query("INSERT INTO model_entitlements (api_key, provider, model) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", [order.api_key, order.provider, order.model]);
       await client.query("INSERT INTO model_token_balances (api_key,provider,model,source,tokens) VALUES ($1,$2,$3,'topup',$4) ON CONFLICT (api_key,provider,model,source) DO UPDATE SET tokens=model_token_balances.tokens+$4,updated_at=NOW()", [order.api_key, order.provider, order.model, Number(order.input_tokens || 0) + Number(order.output_tokens || 0)]);
     }
