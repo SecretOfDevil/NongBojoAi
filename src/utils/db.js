@@ -111,6 +111,18 @@ async function initDb() {
       provider TEXT NOT NULL, model TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (api_key, provider, model)
     );
+    CREATE TABLE IF NOT EXISTS offer_claims (
+      api_key TEXT NOT NULL REFERENCES api_keys(api_key) ON DELETE CASCADE,
+      offer_code TEXT NOT NULL, decision TEXT NOT NULL, terms_accepted BOOLEAN NOT NULL DEFAULT FALSE,
+      privacy_accepted BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (api_key, offer_code)
+    );
+    CREATE TABLE IF NOT EXISTS model_token_balances (
+      api_key TEXT NOT NULL REFERENCES api_keys(api_key) ON DELETE CASCADE,
+      provider TEXT NOT NULL, model TEXT NOT NULL, source TEXT NOT NULL,
+      tokens BIGINT NOT NULL DEFAULT 0, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (api_key, provider, model, source)
+    );
     CREATE INDEX IF NOT EXISTS purchase_orders_api_key_created_at ON purchase_orders (api_key, created_at DESC);
     ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS amount_thb NUMERIC(12,2) NOT NULL DEFAULT 0;
     ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS slip_data BYTEA;
@@ -216,8 +228,27 @@ async function recordUsage(apiKey, entry) {
   );
 }
 
-async function consumeTokens(apiKey, amount) {
+async function consumeTokens(apiKey, amount, provider = null, model = null) {
   const tokens = Math.max(0, Math.floor(Number(amount) || 0));
+  if (provider && model) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const grants = await client.query("SELECT source,tokens FROM model_token_balances WHERE api_key=$1 AND provider=$2 AND model=$3 AND tokens>0 ORDER BY CASE source WHEN 'offer' THEN 0 ELSE 1 END FOR UPDATE", [apiKey, provider, model]);
+      let remaining = tokens;
+      for (const grant of grants.rows) {
+        const take = Math.min(remaining, Number(grant.tokens));
+        if (take) { await client.query("UPDATE model_token_balances SET tokens=tokens-$5,updated_at=NOW() WHERE api_key=$1 AND provider=$2 AND model=$3 AND source=$4", [apiKey, provider, model, grant.source, take]); remaining -= take; }
+        if (!remaining) break;
+      }
+      if (remaining) {
+        const fallback = await client.query("UPDATE api_keys SET token_balance=token_balance-$2 WHERE api_key=$1 AND token_balance >= $2 RETURNING token_balance", [apiKey, remaining]);
+        if (!fallback.rowCount) { await client.query("ROLLBACK"); return null; }
+      }
+      await client.query("COMMIT");
+      return true;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
   const { rows } = await q(
     "UPDATE api_keys SET token_balance=token_balance-$2 WHERE api_key=$1 AND token_balance >= $2 RETURNING token_balance",
     [apiKey, tokens]
@@ -225,10 +256,40 @@ async function consumeTokens(apiKey, amount) {
   return rows[0] ? Number(rows[0].token_balance) : null;
 }
 
-async function refundTokens(apiKey, amount) {
+async function refundTokens(apiKey, amount, provider = null, model = null) {
   const tokens = Math.max(0, Math.floor(Number(amount) || 0));
   if (!tokens) return;
+  if (provider && model) {
+    const { rows } = await q("SELECT source FROM model_token_balances WHERE api_key=$1 AND provider=$2 AND model=$3 ORDER BY CASE source WHEN 'offer' THEN 0 ELSE 1 END LIMIT 1", [apiKey, provider, model]);
+    if (rows[0]) { await q("UPDATE model_token_balances SET tokens=tokens+$5,updated_at=NOW() WHERE api_key=$1 AND provider=$2 AND model=$3 AND source=$4", [apiKey, provider, model, rows[0].source, tokens]); return; }
+  }
   await q("UPDATE api_keys SET token_balance=token_balance+$2 WHERE api_key=$1", [apiKey, tokens]);
+}
+
+async function getOfferStatus(apiKey, offerCode) {
+  const { rows } = await q("SELECT decision,terms_accepted,privacy_accepted,created_at FROM offer_claims WHERE api_key=$1 AND offer_code=$2", [apiKey, offerCode]);
+  return rows[0] || null;
+}
+
+async function claimOffer(apiKey, offerCode, decision, termsAccepted = false, privacyAccepted = false) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const existing = await client.query("SELECT decision FROM offer_claims WHERE api_key=$1 AND offer_code=$2 FOR UPDATE", [apiKey, offerCode]);
+    if (existing.rowCount) { await client.query("ROLLBACK"); return { decision: existing.rows[0].decision, alreadyDecided: true }; }
+    await client.query("INSERT INTO offer_claims (api_key,offer_code,decision,terms_accepted,privacy_accepted) VALUES ($1,$2,$3,$4,$5)", [apiKey, offerCode, decision, termsAccepted, privacyAccepted]);
+    if (decision === "accepted") {
+      await client.query("INSERT INTO model_token_balances (api_key,provider,model,source,tokens) VALUES ($1,'openai','gpt-5.6-terra','offer',$2)", [apiKey, 100000]);
+      await client.query("INSERT INTO model_entitlements (api_key,provider,model) VALUES ($1,'openai','gpt-5.6-terra') ON CONFLICT DO NOTHING", [apiKey]);
+    }
+    await client.query("COMMIT");
+    return { decision, tokens: decision === "accepted" ? 100000 : 0 };
+  } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+}
+
+async function getModelTokenBalances(apiKey) {
+  const { rows } = await q("SELECT provider,model,source,tokens,updated_at FROM model_token_balances WHERE api_key=$1 AND tokens>0 ORDER BY provider,model,source", [apiKey]);
+  return rows.map(row => ({ provider: row.provider, model: row.model, source: row.source, tokens: Number(row.tokens), updatedAt: row.updated_at }));
 }
 
 async function sumUsageSince(apiKey, sinceTs) {
@@ -362,6 +423,7 @@ async function reviewPaymentOrder(id, approved, note = "") {
     if (approved && order.kind === "token") {
       await client.query("UPDATE api_keys SET token_balance=token_balance+$2 WHERE api_key=$1", [order.api_key, Number(order.input_tokens || 0) + Number(order.output_tokens || 0)]);
       await client.query("INSERT INTO model_entitlements (api_key, provider, model) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", [order.api_key, order.provider, order.model]);
+      await client.query("INSERT INTO model_token_balances (api_key,provider,model,source,tokens) VALUES ($1,$2,$3,'topup',$4) ON CONFLICT (api_key,provider,model,source) DO UPDATE SET tokens=model_token_balances.tokens+$4,updated_at=NOW()", [order.api_key, order.provider, order.model, Number(order.input_tokens || 0) + Number(order.output_tokens || 0)]);
     }
     await client.query("UPDATE purchase_orders SET status=$2, reviewed_at=NOW(), review_note=$3, slip_data=NULL, slip_mime=NULL WHERE id=$1", [id, approved ? "approved" : "rejected", note]);
     await client.query("COMMIT");
@@ -619,7 +681,7 @@ module.exports = {
   readDb, writeDb,
   getKeyRecord, createKey, updateKeyLimits, deleteKey, listAccounts, setAccountTier,
   recordUsage, consumeTokens, refundTokens, sumUsageSince,
-  getAllLogs, logAuditEvent, getAuditLogs, createPurchaseOrder, submitPaymentSlip, listPaymentApprovals, getPaymentSlip, reviewPaymentOrder, getModelStatuses, setModelStatus, isModelOnline, getUsageStats, updateOwnLimits,
+  getAllLogs, logAuditEvent, getAuditLogs, createPurchaseOrder, submitPaymentSlip, listPaymentApprovals, getPaymentSlip, reviewPaymentOrder, getModelStatuses, setModelStatus, isModelOnline, getOfferStatus, claimOffer, getModelTokenBalances, getUsageStats, updateOwnLimits,
   createConversation, getConversation, listConversations, appendMessage, deleteConversation,
   getUser, createUser, authenticateUser, getProfileByApiKey, updateProfile, verifyPassword,
 };

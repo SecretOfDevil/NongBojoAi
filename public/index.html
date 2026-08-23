@@ -214,6 +214,7 @@
   .repo-row button{border:1px solid var(--amber);background:transparent;color:var(--amber);padding:6px 10px;border-radius:5px;cursor:pointer;white-space:nowrap}
   .repo-row button:disabled{opacity:.5;cursor:wait}.repo-row span{color:var(--muted);font-family:var(--mono);font-size:11px;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @media(max-width:600px){.repo-row{flex-wrap:wrap}.repo-row input{flex-basis:100%}.repo-row span{max-width:100%}}
+  .offer-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:20;place-items:center;padding:18px}.offer-modal.open{display:grid}.offer-card{width:min(100%,480px);background:var(--panel);border:1px solid var(--amber);border-radius:10px;padding:22px}.offer-card h2{margin-top:0}.offer-copy{max-height:270px;overflow:auto;color:var(--muted);line-height:1.6}.offer-actions{display:flex;gap:8px;align-items:center;margin-top:18px}.offer-actions button{padding:9px 14px;border-radius:6px;cursor:pointer}.offer-accept{background:var(--amber);color:#171107;border:0}.offer-decline{background:transparent;color:var(--muted);border:0;font-size:11px;cursor:pointer}
   input[type=number]{background:var(--panel-2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 8px;border-radius:6px;width:70px;}
   .chat-scroll .row{animation:messageIn .3s ease both;}
   @keyframes slideDown{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
@@ -241,7 +242,8 @@
     <div class="navmenu">
       <a class="navlink active" href="/index.html">💬 แชท</a>
       <a class="navlink" href="/usage.html">📊 การใช้งาน / งบประมาณ</a>
-      <a class="navlink" href="/profile.html">👤 Profile & Plans</a>
+      <a class="navlink" href="/profile.html">👤 Profile</a>
+      <a class="navlink" href="/plans.html">▣ Plans</a>
       <a class="navlink" href="/payment.html">💳 ชำระเงิน / Top-up</a>
       <a class="navlink" href="/status.html">● Model status</a>
       <a class="navlink" href="/admin.html">🛡️ Admin menu</a>
@@ -287,10 +289,11 @@
   <button class="theme-btn mobile-theme-btn" id="mobileThemeBtn" type="button">☀️ Light mode</button>
   <div class="mobile-convlist" id="mobileConvList"><div class="empty-convs">ยังไม่มีแชท</div></div>
   <nav class="mobile-nav">
-    <a href="/index.html">💬 แชท</a><a href="/usage.html">📊 การใช้งาน / งบประมาณ</a><a href="/profile.html">👤 Profile & Plans</a><a href="/payment.html">💳 ชำระเงิน / Top-up</a><a href="/status.html">● Model status</a><a href="/admin.html">🛡️ Admin menu</a><a href="#" id="mobileLogoutLink">🚪 ออกจากระบบ</a>
+    <a href="/index.html">💬 แชท</a><a href="/usage.html">📊 การใช้งาน / งบประมาณ</a><a href="/profile.html">👤 Profile</a><a href="/plans.html">▣ Plans</a><a href="/payment.html">💳 ชำระเงิน / Top-up</a><a href="/status.html">● Model status</a><a href="/admin.html">🛡️ Admin menu</a><a href="#" id="mobileLogoutLink">🚪 ออกจากระบบ</a>
   </nav>
 </aside>
 <div class="mobile-backdrop" id="mobileBackdrop"></div>
+<div class="offer-modal" id="offerModal"><section class="offer-card"><h2 id="offerTitle">Offer: GPT-5 100K tokens</h2><div class="offer-copy" id="offerCopy"></div><div class="offer-actions"><button class="offer-accept" id="offerAccept">ยอมรับ</button><button class="offer-decline" id="offerDecline">ปฏิเสธ</button></div></section></div>
 <div class="retention-modal" id="retentionModal" role="dialog" aria-modal="true" aria-labelledby="retentionTitle">
   <div class="retention-card"><h2 id="retentionTitle">สิทธิ์การเก็บประวัติแชท</h2><p>บัญชี Free จะเก็บประวัติแชทไว้ 7 วันเท่านั้น คุณสามารถดาวน์โหลดแชทเป็นไฟล์ TXT ได้ทุกเมื่อ หรืออัปเกรดเพื่อเก็บประวัติแบบไม่จำกัด</p><div class="retention-actions"><button class="retention-close" id="retentionClose" type="button">ปิด</button><button class="retention-upgrade" id="retentionUpgrade" type="button">ดูแผนและอัปเกรด</button></div></div>
 </div>
@@ -327,6 +330,12 @@ toolbarToggle.addEventListener('click', () => setToolbarOpen(chatToolbar.classLi
 window.addEventListener('resize', () => { if (window.innerWidth > 800 && chatToolbar.classList.contains('collapsed')) setToolbarOpen(true); });
 
 function hdr() { return { 'x-api-key': apiKeyInput.value.trim() }; }
+const offerModal = document.getElementById('offerModal');
+let offerStep = 0;
+function showOfferStep() { offerStep += 1; document.getElementById('offerTitle').textContent = offerStep === 1 ? 'TOS · 1/2' : 'Privacy notice · 2/2'; document.getElementById('offerCopy').textContent = offerStep === 1 ? 'ข้อตกลงการใช้ offer: รับ GPT-5 จำนวน 100,000 token สำหรับบัญชี Free และ Plus ใช้ได้ตามเครดิตและกติกาการใช้งานของระบบ คำตอบจาก AI อาจผิดพลาด ผู้ใช้ต้องตรวจสอบก่อนใช้งาน' : 'Privacy notice: ระบบบันทึกข้อมูลบัญชี การใช้งาน และการรับ offer เท่าที่จำเป็นเพื่อให้บริการ ป้องกันการทุจริต และแสดงยอด token ข้อมูลจะไม่ถูกใช้เกินวัตถุประสงค์ที่แจ้งไว้'; document.getElementById('offerAccept').textContent = offerStep === 1 ? 'ยอมรับ TOS' : 'รับ offer'; }
+async function loadOffer() { const res = await fetch('/v1/offer/gpt5', { headers: hdr() }); const data = await res.json(); if (res.ok && data.eligible) { offerStep = 0; showOfferStep(); offerModal.classList.add('open'); } }
+document.getElementById('offerAccept').onclick = async () => { if (offerStep === 1) { showOfferStep(); return; } const res = await fetch('/v1/offer/gpt5', { method:'POST', headers:{...hdr(),'Content-Type':'application/json'}, body:JSON.stringify({decision:'accepted',termsAccepted:true,privacyAccepted:true}) }); const data=await res.json(); if(res.ok){offerModal.classList.remove('open');alert(`รับ offer สำเร็จ: ${data.tokens.toLocaleString()} tokens สำหรับ GPT-5`);} else alert(data.error||'รับ offer ไม่สำเร็จ'); };
+document.getElementById('offerDecline').onclick = async () => { await fetch('/v1/offer/gpt5', { method:'POST', headers:{...hdr(),'Content-Type':'application/json'}, body:JSON.stringify({decision:'declined'}) }); offerModal.classList.remove('open'); };
 
 // ===== Auth guard: ต้อง login ก่อนถึงจะใช้หน้าแชทได้ =====
 // x-api-key ไม่แสดงในหน้าเว็บอีกต่อไป (ป้องกันหลุด/โดนแอบดูจอ) ระบบดึงมาจาก localStorage
@@ -723,6 +732,7 @@ async function checkBudgetWarning() {
   document.querySelectorAll('#userTier,#mobileUserTier').forEach(element => { element.textContent = accountTier.toUpperCase(); });
   await loadProviders();
   checkBudgetWarning();
+  loadOffer();
   refreshConvList();
   setInterval(checkBudgetWarning, 15000);
 })();

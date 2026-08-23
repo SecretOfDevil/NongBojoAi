@@ -161,7 +161,7 @@ router.post("/chat", requireApiKey, requestRateLimiter, upload.array("files", 5)
 
     if (requiredTier !== "free") {
       reservedTokens = Math.max(0, Math.floor(estInputTokens + Number(max_tokens)));
-      const remaining = await consumeTokens(req.apiKey, reservedTokens);
+      const remaining = await consumeTokens(req.apiKey, reservedTokens, provider, chosenModel);
       if (remaining === null) {
         return res.status(402).json({ error: "เครดิต token ไม่พอ กรุณาเติม token เพิ่ม", code: "TOKEN_BALANCE_EMPTY", tokenBalance: req.keyRecord.tokenBalance, tokenPlanLimit: req.keyRecord.tokenPlanLimit });
       }
@@ -175,7 +175,7 @@ router.post("/chat", requireApiKey, requestRateLimiter, upload.array("files", 5)
 
     const cost = calcCostUSD(provider, chosenModel, result.inputTokens, result.outputTokens);
     const actualTokens = result.inputTokens + result.outputTokens;
-    await refundTokens(req.apiKey, Math.max(0, reservedTokens - actualTokens));
+    await refundTokens(req.apiKey, Math.max(0, reservedTokens - actualTokens), provider, chosenModel);
     reservedTokens = 0;
     await recordUsage(req.apiKey, {
       provider,
