@@ -27,6 +27,8 @@
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
 
   .app{display:grid;grid-template-columns:250px 1fr;height:100vh;height:100dvh;min-height:0;}
+  .app.sidebar-collapsed{grid-template-columns:minmax(0,0) minmax(0,1fr);}
+  .app.sidebar-collapsed .sidebar{visibility:hidden;overflow:hidden;}
   .mobile-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);flex:0 0 auto;}
   .toolbar-toggle{width:40px;height:36px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:18px;cursor:pointer;}
   .mobile-drawer,.mobile-backdrop{display:none;}
@@ -36,6 +38,7 @@
     body{overflow:hidden;}
     .app{display:block;height:100%;min-height:0;}
     .sidebar{display:none;}
+    .app.sidebar-collapsed{display:block;}
     .center{height:100%;min-height:0;border:0;}
     .mobile-topbar{padding:8px 12px;}
     .mobile-title{font:600 12px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -71,7 +74,7 @@
   }
 
   /* ===== Sidebar ===== */
-  .sidebar{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .sidebar{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0;}
   .sidebar-head{padding:16px;border-bottom:1px solid var(--border);}
   .brand{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
   .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);}
@@ -299,6 +302,8 @@ const sendBtn = document.getElementById('sendBtn');
 const limitBanner = document.getElementById('limitBanner');
 const chatToolbar = document.getElementById('chatToolbar');
 const toolbarToggle = document.getElementById('toolbarToggle');
+const app = document.querySelector('.app');
+const mobileMenuButton = document.getElementById('mobileMenuBtn');
 
 function setToolbarOpen(isOpen) {
   chatToolbar.classList.toggle('collapsed', !isOpen);
@@ -353,7 +358,16 @@ const mobileDrawer = document.getElementById('mobileDrawer');
 const mobileBackdrop = document.getElementById('mobileBackdrop');
 function closeMobileMenu() { mobileDrawer.classList.remove('open'); mobileBackdrop.classList.remove('open'); }
 function openMobileMenu() { mobileDrawer.classList.add('open'); mobileBackdrop.classList.add('open'); }
-document.getElementById('mobileMenuBtn').addEventListener('click', openMobileMenu);
+function toggleLeftSidebar() {
+  if (window.innerWidth <= 800) {
+    mobileDrawer.classList.contains('open') ? closeMobileMenu() : openMobileMenu();
+    return;
+  }
+  const collapsed = app.classList.toggle('sidebar-collapsed');
+  mobileMenuButton.setAttribute('aria-label', collapsed ? 'เปิด sidebar' : 'ปิด sidebar');
+  mobileMenuButton.setAttribute('aria-expanded', String(!collapsed));
+}
+mobileMenuButton.addEventListener('click', toggleLeftSidebar);
 document.getElementById('mobileCloseBtn').addEventListener('click', closeMobileMenu);
 mobileBackdrop.addEventListener('click', closeMobileMenu);
 document.getElementById('mobileLogoutLink').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('logoutLink').click(); });
