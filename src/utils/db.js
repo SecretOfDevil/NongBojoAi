@@ -109,6 +109,9 @@ async function initDb() {
     ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
     ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS review_note TEXT;
     ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS account_tier TEXT NOT NULL DEFAULT 'free';
+    ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS token_balance BIGINT NOT NULL DEFAULT 0;
+    ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS token_plan_limit BIGINT NOT NULL DEFAULT 0;
+    ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS token_plan_started_at TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT FALSE;
   `);
 
@@ -137,6 +140,9 @@ async function getKeyRecord(apiKey) {
     monthlyBudgetUSD: Number(r.monthly_budget_usd),
     requestsPerMinute: r.requests_per_minute,
     tier: r.account_tier || "free",
+    tokenBalance: Number(r.token_balance || 0),
+    tokenPlanLimit: Number(r.token_plan_limit || 0),
+    tokenPlanStartedAt: r.token_plan_started_at,
   };
 }
 
@@ -187,6 +193,21 @@ async function recordUsage(apiKey, entry) {
     [apiKey, entry.ts || Date.now(), entry.provider || null, entry.model || null,
      entry.inputTokens || 0, entry.outputTokens || 0, entry.usdTotal || 0]
   );
+}
+
+async function consumeTokens(apiKey, amount) {
+  const tokens = Math.max(0, Math.floor(Number(amount) || 0));
+  const { rows } = await q(
+    "UPDATE api_keys SET token_balance=token_balance-$2 WHERE api_key=$1 AND token_balance >= $2 RETURNING token_balance",
+    [apiKey, tokens]
+  );
+  return rows[0] ? Number(rows[0].token_balance) : null;
+}
+
+async function refundTokens(apiKey, amount) {
+  const tokens = Math.max(0, Math.floor(Number(amount) || 0));
+  if (!tokens) return;
+  await q("UPDATE api_keys SET token_balance=token_balance+$2 WHERE api_key=$1", [apiKey, tokens]);
 }
 
 async function sumUsageSince(apiKey, sinceTs) {
@@ -296,11 +317,11 @@ async function submitPaymentSlip(id, apiKey, file) {
 }
 async function listPaymentApprovals() {
   const { rows } = await q(
-    `SELECT o.id,o.kind,o.tier,o.amount_thb,o.status,o.created_at,o.submitted_at,o.slip_mime,k.name
+    `SELECT o.id,o.kind,o.tier,o.provider,o.model,o.input_tokens,o.output_tokens,o.amount_thb,o.status,o.created_at,o.submitted_at,o.slip_mime,k.name,k.token_balance,k.token_plan_limit
      FROM purchase_orders o JOIN api_keys k ON k.api_key=o.api_key
      WHERE o.status='waiting_approval' ORDER BY o.submitted_at ASC`
   );
-  return rows.map(r => ({ id:r.id, kind:r.kind, tier:r.tier, amountThb:Number(r.amount_thb), status:r.status, createdAt:r.created_at, submittedAt:r.submitted_at, slipMime:r.slip_mime, name:r.name }));
+  return rows.map(r => ({ id:r.id, kind:r.kind, tier:r.tier, provider:r.provider, model:r.model, tokens:Number(r.input_tokens || 0) + Number(r.output_tokens || 0), amountThb:Number(r.amount_thb), status:r.status, createdAt:r.created_at, submittedAt:r.submitted_at, slipMime:r.slip_mime, name:r.name, tokenBalance:Number(r.token_balance || 0), tokenPlanLimit:Number(r.token_plan_limit || 0) }));
 }
 async function getPaymentSlip(id) {
   const { rows } = await q("SELECT slip_data,slip_mime FROM purchase_orders WHERE id=$1 AND status='waiting_approval'", [id]);
@@ -313,7 +334,13 @@ async function reviewPaymentOrder(id, approved, note = "") {
     const { rows } = await client.query("SELECT * FROM purchase_orders WHERE id=$1 AND status='waiting_approval' FOR UPDATE", [id]);
     const order = rows[0];
     if (!order) { await client.query("ROLLBACK"); return null; }
-    if (approved && order.kind === "tier") await client.query("UPDATE api_keys SET account_tier=$2 WHERE api_key=$1", [order.api_key, order.tier]);
+    if (approved && order.kind === "tier") {
+      const planLimit = order.tier === "max" ? 1500000 : 400000;
+      await client.query("UPDATE api_keys SET account_tier=$2, token_balance=$3, token_plan_limit=$3, token_plan_started_at=NOW() WHERE api_key=$1", [order.api_key, order.tier, planLimit]);
+    }
+    if (approved && order.kind === "token") {
+      await client.query("UPDATE api_keys SET token_balance=token_balance+$2 WHERE api_key=$1", [order.api_key, Number(order.input_tokens || 0) + Number(order.output_tokens || 0)]);
+    }
     await client.query("UPDATE purchase_orders SET status=$2, reviewed_at=NOW(), review_note=$3, slip_data=NULL, slip_mime=NULL WHERE id=$1", [id, approved ? "approved" : "rejected", note]);
     await client.query("COMMIT");
     return { ...order, status: approved ? "approved" : "rejected" };
@@ -534,7 +561,7 @@ module.exports = {
   initDb, pool,
   readDb, writeDb,
   getKeyRecord, createKey, updateKeyLimits, deleteKey, listAccounts, setAccountTier,
-  recordUsage, sumUsageSince,
+  recordUsage, consumeTokens, refundTokens, sumUsageSince,
   getAllLogs, logAuditEvent, getAuditLogs, createPurchaseOrder, submitPaymentSlip, listPaymentApprovals, getPaymentSlip, reviewPaymentOrder, getUsageStats, updateOwnLimits,
   createConversation, getConversation, listConversations, appendMessage, deleteConversation,
   getUser, createUser, authenticateUser,

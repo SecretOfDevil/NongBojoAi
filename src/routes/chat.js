@@ -5,7 +5,7 @@ const { upload } = require("../middleware/upload");
 const { requireApiKey } = require("../middleware/auth");
 const { requestRateLimiter } = require("../middleware/rateLimiter");
 const { getProvider, calcCostUSD, DEFAULT_PROVIDER, round, getModelTier } = require("../config/pricing");
-const { recordUsage, sumUsageSince, createConversation, getConversation, appendMessage } = require("../utils/db");
+const { recordUsage, consumeTokens, refundTokens, sumUsageSince, createConversation, getConversation, appendMessage } = require("../utils/db");
 const { fileToContentBlock, cleanupFiles } = require("../utils/fileToContentBlock");
 const { callProvider, checkCapability } = require("../providers");
 const { estimateHistoryInputTokens } = require("../utils/estimateTokens");
@@ -74,6 +74,7 @@ function saveResponseAsFile(conversationId, provider, model, text) {
  */
 router.post("/chat", requireApiKey, requestRateLimiter, upload.array("files", 5), async (req, res) => {
   const files = req.files || [];
+  let reservedTokens = 0;
   try {
     const {
       message,
@@ -132,16 +133,26 @@ router.post("/chat", requireApiKey, requestRateLimiter, upload.array("files", 5)
 
     // ===== HARD BUDGET CUTOFF: เช็คก่อนยิงไป provider จริง ห้ามเกิน limit เด็ดขาด =====
     const estInputTokens = estimateHistoryInputTokens(history);
-    const cutoff = await checkHardBudgetCutoff(req.apiKey, req.keyRecord, provider, chosenModel, estInputTokens, Number(max_tokens));
-    if (cutoff.blocked) {
-      return res.status(429).json({
-        error:
-          cutoff.reason === "daily"
-            ? `ตัดจบ: งบประมาณรายวันไม่พอสำหรับ request นี้ (ใช้ไปแล้ว $${cutoff.usedUSD} จากงบ $${cutoff.budgetUSD}/วัน, request นี้ประเมินสูงสุด $${cutoff.estimatedRequestCostUSD})`
-            : `ตัดจบ: งบประมาณรายเดือนไม่พอสำหรับ request นี้ (ใช้ไปแล้ว $${cutoff.usedUSD} จากงบ $${cutoff.budgetUSD}/เดือน, request นี้ประเมินสูงสุด $${cutoff.estimatedRequestCostUSD})`,
-        code: "BUDGET_LIMIT_REACHED",
-        ...cutoff,
-      });
+    if (requiredTier === "free") {
+      const cutoff = await checkHardBudgetCutoff(req.apiKey, req.keyRecord, provider, chosenModel, estInputTokens, Number(max_tokens));
+      if (cutoff.blocked) {
+        return res.status(429).json({
+          error:
+            cutoff.reason === "daily"
+              ? `ตัดจบ: งบประมาณรายวันไม่พอสำหรับ request นี้ (ใช้ไปแล้ว $${cutoff.usedUSD} จากงบ $${cutoff.budgetUSD}/วัน, request นี้ประเมินสูงสุด $${cutoff.estimatedRequestCostUSD})`
+              : `ตัดจบ: งบประมาณรายเดือนไม่พอสำหรับ request นี้ (ใช้ไปแล้ว $${cutoff.usedUSD} จากงบ $${cutoff.budgetUSD}/เดือน, request นี้ประเมินสูงสุด $${cutoff.estimatedRequestCostUSD})`,
+          code: "BUDGET_LIMIT_REACHED",
+          ...cutoff,
+        });
+      }
+    }
+
+    if (requiredTier !== "free") {
+      reservedTokens = Math.max(0, Math.floor(estInputTokens + Number(max_tokens)));
+      const remaining = await consumeTokens(req.apiKey, reservedTokens);
+      if (remaining === null) {
+        return res.status(402).json({ error: "เครดิต token ไม่พอ กรุณาเติม token เพิ่ม", code: "TOKEN_BALANCE_EMPTY", tokenBalance: req.keyRecord.tokenBalance, tokenPlanLimit: req.keyRecord.tokenPlanLimit });
+      }
     }
 
     // ===== เรียก provider จริง =====
@@ -151,6 +162,9 @@ router.post("/chat", requireApiKey, requestRateLimiter, upload.array("files", 5)
     });
 
     const cost = calcCostUSD(provider, chosenModel, result.inputTokens, result.outputTokens);
+    const actualTokens = result.inputTokens + result.outputTokens;
+    await refundTokens(req.apiKey, Math.max(0, reservedTokens - actualTokens));
+    reservedTokens = 0;
     await recordUsage(req.apiKey, {
       provider,
       model: chosenModel,
@@ -188,6 +202,7 @@ router.post("/chat", requireApiKey, requestRateLimiter, upload.array("files", 5)
       },
     });
   } catch (err) {
+    if (reservedTokens) await refundTokens(req.apiKey, reservedTokens);
     console.error(err);
     res.status(500).json({ error: err.message || "internal error" });
   } finally {

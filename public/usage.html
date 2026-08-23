@@ -114,6 +114,11 @@
 
   /* Settings */
   .settings-form{max-width:360px;}
+  .token-wallet{max-width:640px;margin-bottom:18px;padding:14px;background:var(--panel);border:1px solid var(--border);border-radius:8px;}
+  .token-wallet-head{display:flex;justify-content:space-between;gap:12px;font:12px var(--mono);}
+  .token-track{height:10px;margin-top:9px;background:var(--panel-3);border-radius:999px;overflow:hidden;}
+  .token-fill{height:100%;width:0;background:var(--green);transition:width .3s ease;}
+  .token-note{margin:8px 0 0;color:var(--muted);font:11px var(--mono);}
   .field{margin-bottom:16px;}
   .field label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:5px;}
   .field .hint{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;}
@@ -160,7 +165,8 @@
   <div class="main">
     <nav class="mobile-nav" aria-label="เมนูมือถือ"><a href="/index.html">💬 แชท</a><a href="/usage.html">📊 Usage</a><a href="/profile.html">👤 Profile</a><a href="/admin.html">🛡️ Admin</a><a href="#" id="mobileLogoutLink">🚪 ออก</a><button class="theme-btn" id="mobileThemeBtn" type="button">☀️ Light</button></nav>
     <div class="page-title">Pay as you go — Usage & Token เครดิต</div>
-    <div class="settings-form" style="margin-bottom:22px"><div class="section-label">ซื้อ Token รายโมเดล</div><select id="buyModel" style="width:100%;padding:9px;margin-bottom:8px"></select><input id="buyInput" type="number" min="0" value="100000" placeholder="Input token" style="margin-bottom:8px"><input id="buyOutput" type="number" min="0" value="100000" placeholder="Output token" style="margin-bottom:8px"><button class="savebtn" id="buyBtn" type="button">สร้าง QR dummy</button><pre id="dummyQr" style="display:none;white-space:pre-wrap;background:#fff;color:#111;padding:12px;border-radius:6px"></pre></div>
+    <div class="token-wallet" id="tokenWallet" style="display:none"><div class="token-wallet-head"><b>เครดิต token คงเหลือ</b><span id="tokenWalletText"></span></div><div class="token-track"><div class="token-fill" id="tokenFill"></div></div><p class="token-note" id="tokenWalletNote"></p></div>
+    <div class="settings-form" style="margin-bottom:22px"><div class="section-label">เติมเครดิตตามโมเดล</div><select id="buyModel" style="width:100%;padding:9px;margin-bottom:8px"></select><input id="buyInput" type="number" min="0" value="100000" placeholder="Input tokens" style="margin-bottom:8px"><input id="buyOutput" type="number" min="0" value="100000" placeholder="Output tokens" style="margin-bottom:8px"><button class="savebtn" id="buyBtn" type="button">สร้าง QR และส่งสลิป</button><div id="topupBox" style="display:none;background:#fff;color:#111;padding:14px;border-radius:8px;margin-top:10px"><img id="topupQr" alt="PromptPay QR" style="width:220px;display:block;margin-bottom:8px"><b id="topupAmount"></b><p id="topupNotice"></p><input id="topupSlip" type="file" accept="image/*"><button class="savebtn" id="topupUpload" type="button">ส่งสลิป</button><div id="topupStatus"></div></div></div>
 
     <div class="subtabs">
       <button class="subtab active" data-panel="panelOverview">ภาพรวม</button>
@@ -293,9 +299,10 @@ document.getElementById('mobileLogoutLink').addEventListener('click', (e) => {
 function hdr() { return { 'x-api-key': apiKeyInput.value.trim() }; }
 function hdrJson() { return { 'x-api-key': apiKeyInput.value.trim(), 'Content-Type': 'application/json' }; }
 let catalog=[];
-fetch('/v1/profile',{headers:hdr()}).then(r=>r.json()).then(profile=>{document.getElementById('userTier').textContent=(profile.tier||'free').toUpperCase();}).catch(()=>{});
+fetch('/v1/profile',{headers:hdr()}).then(r=>r.json()).then(profile=>{const tier=profile.tier||'free';document.getElementById('userTier').textContent=tier.toUpperCase();const limit=Number(profile.tokenPlanLimit||0),balance=Number(profile.tokenBalance||0);if(limit){document.getElementById('tokenWallet').style.display='block';document.getElementById('tokenWalletText').textContent=`${balance.toLocaleString()} / ${limit.toLocaleString()}`;document.getElementById('tokenFill').style.width=`${Math.min(100,balance/limit*100)}%`;document.getElementById('tokenWalletNote').textContent=balance?'เมื่อเครดิตหมด สามารถเติม token ตาม model ได้':'เครดิตหมดแล้ว กรุณาสร้างรายการเติม token';}}).catch(()=>{});
 fetch('/v1/catalog',{headers:hdr()}).then(r=>r.json()).then(d=>{catalog=Object.entries(d.providers).flatMap(([provider,p])=>p.models.map(m=>({...m,provider,label:`[${m.tier.toUpperCase()}] ${p.label} — ${m.label}`})));const s=document.getElementById('buyModel');s.innerHTML=catalog.map((m,i)=>`<option value="${i}">${m.label}</option>`).join('')}).catch(()=>{});
-document.getElementById('buyBtn').onclick=async()=>{const m=catalog[document.getElementById('buyModel').value];if(!m)return;const r=await fetch('/v1/checkout',{method:'POST',headers:hdrJson(),body:JSON.stringify({provider:m.provider,model:m.id,inputTokens:Number(document.getElementById('buyInput').value),outputTokens:Number(document.getElementById('buyOutput').value)})});const d=await r.json();const q=document.getElementById('dummyQr');q.style.display='block';q.textContent=r.ok?`DUMMY QR\n${d.qrText}\n${d.notice}`:d.error};
+document.getElementById('buyBtn').onclick=async()=>{const m=catalog[document.getElementById('buyModel').value];if(!m)return;const r=await fetch('/v1/checkout',{method:'POST',headers:hdrJson(),body:JSON.stringify({provider:m.provider,model:m.id,inputTokens:Number(document.getElementById('buyInput').value),outputTokens:Number(document.getElementById('buyOutput').value)})});const d=await r.json();if(!r.ok){document.getElementById('topupStatus').textContent=d.error;document.getElementById('topupBox').style.display='block';return}document.getElementById('topupBox').style.display='block';document.getElementById('topupQr').src=d.qrDataUrl;document.getElementById('topupAmount').textContent=`ยอดชำระ ฿${d.amountThb} · ${d.tokens.toLocaleString()} tokens`;document.getElementById('topupNotice').textContent=d.notice;document.getElementById('topupUpload').dataset.orderId=d.orderId;};
+document.getElementById('topupUpload').onclick=async()=>{const file=document.getElementById('topupSlip').files[0],status=document.getElementById('topupStatus'),orderId=document.getElementById('topupUpload').dataset.orderId;if(!file||!orderId){status.textContent='กรุณาเลือกรูปสลิป';return}const form=new FormData();form.append('slip',file);const r=await fetch(`/v1/orders/${orderId}/slip`,{method:'POST',headers:hdr(),body:form});const d=await r.json();status.textContent=r.ok?'ส่งสลิปแล้ว รอ Admin อนุมัติ':'ส่งสลิปไม่สำเร็จ: '+(d.error||'unknown error')};
 
 // ===== เมนูย่อย (tabs) =====
 const subtabs = document.querySelectorAll('.subtab');

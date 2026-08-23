@@ -22,6 +22,11 @@ router.get("/usage", requireApiKey, async (req, res, next) => {
 
   res.json({
     name: rec.name,
+    tokenWallet: {
+      balance: rec.tokenBalance,
+      planLimit: rec.tokenPlanLimit,
+      percent: rec.tokenPlanLimit ? Math.round((rec.tokenBalance / rec.tokenPlanLimit) * 100) : 0,
+    },
     limits: {
       dailyBudgetUSD: rec.dailyBudgetUSD,
       monthlyBudgetUSD: rec.monthlyBudgetUSD,
