@@ -87,6 +87,34 @@ const PROVIDERS = {
       "llama-3.3-70b-versatile": { label: "Llama 3.3 70B", input: 0.59, output: 0.79 },
     },
   },
+  qwen: {
+    label: "Qwen (Alibaba DashScope)",
+    apiKeyEnv: "QWEN_API_KEY",
+    defaultModel: "qwen-plus",
+    capabilities: { image: true, document: false },
+    models: {
+      "qwen-turbo": { label: "Qwen Turbo (ประหยัด/เร็ว)", input: 0.05, output: 0.2 },
+      "qwen-plus": { label: "Qwen Plus (สมดุล)", input: 0.8, output: 2.0 },
+      "qwen-max": { label: "Qwen Max (คุณภาพสูง)", input: 2.4, output: 9.6 },
+      "qwen3-max": { label: "Qwen3 Max (พรีเมียมสุด)", input: 2.4, output: 9.6 },
+      "qwen3-plus": { label: "Qwen3 Plus", input: 0.8, output: 2.0 },
+      "qwen3-8b": { label: "Qwen3 8B (ประหยัดสุด)", input: 0.05, output: 0.2 },
+      "qwen3-14b": { label: "Qwen3 14B", input: 0.1, output: 0.3 },
+      "qwen3-30b-a3b": { label: "Qwen3 30B A3B", input: 0.15, output: 0.6 },
+      "qwen3-32b": { label: "Qwen3 32B", input: 0.2, output: 0.8 },
+      "qwen3-235b-a22b": { label: "Qwen3 235B A22B (พรีเมียม)", input: 0.8, output: 2.4 },
+      "qwen3-coder-flash": { label: "Qwen3 Coder Flash", input: 0.3, output: 1.5 },
+      "qwen3-coder-plus": { label: "Qwen3 Coder Plus", input: 1.0, output: 5.0 },
+      "qwen2.5-7b-instruct": { label: "Qwen2.5 7B Instruct", input: 0.05, output: 0.2 },
+      "qwen2.5-14b-instruct": { label: "Qwen2.5 14B Instruct", input: 0.1, output: 0.3 },
+      "qwen2.5-32b-instruct": { label: "Qwen2.5 32B Instruct", input: 0.2, output: 0.8 },
+      "qwen2.5-72b-instruct": { label: "Qwen2.5 72B Instruct", input: 0.8, output: 2.4 },
+      "qwen2.5-coder-7b-instruct": { label: "Qwen2.5 Coder 7B", input: 0.05, output: 0.2 },
+      "qwen2.5-coder-32b-instruct": { label: "Qwen2.5 Coder 32B", input: 0.2, output: 0.8 },
+      "qwen2.5-vl-72b-instruct": { label: "Qwen2.5 VL 72B (Vision)", input: 1.0, output: 3.0 },
+      "qwen-vl-max": { label: "Qwen VL Max (Vision)", input: 2.0, output: 8.0 },
+    },
+  },
 };
 
 const DEFAULT_PROVIDER = "anthropic";
@@ -105,6 +133,7 @@ function isValidModel(provider, model) {
 function getModelTier(provider, model) {
   if (getPricing(provider, model)?.topupOnly) return "topup";
   if (provider === "openrouter") return "free";
+  if (provider === "qwen") return "plus";
   const budgetOpenAI = ["gpt-5-nano", "gpt-5-mini", "gpt-4.1-nano", "gpt-4.1-mini", "gpt-4o-mini", "gpt-5.6-luna"];
   if ((provider === "anthropic" && !model.includes("haiku")) || (provider === "openai" && !budgetOpenAI.includes(model)) || (provider === "gemini" && model.includes("pro"))) return "max";
   return "plus";

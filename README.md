@@ -1,10 +1,10 @@
 # Claude Proxy — เว็บแชท AI หลายค่าย พร้อมคิดเงิน/limit/ไฟล์แนบ
 
-เว็บเซิร์ฟเวอร์ (Node.js/Express) ที่ครอบ API ของ **Claude, GPT (OpenAI), Gemini (Google), และ DeepSeek**
+เว็บเซิร์ฟเวอร์ (Node.js/Express) ที่ครอบ API ของ **Claude, GPT (OpenAI), Gemini (Google), DeepSeek และ Qwen (Alibaba DashScope)**
 ไว้อีกชั้น ให้คุณแจก **API key ของตัวเอง** ให้ผู้ใช้แต่ละคน โดยระบบจะ:
 
 - แชทแบบมี **ประวัติ (multi-turn history)** เหมือนแอปแชทจริง มี sidebar เลือกแชทเก่าได้
-- สลับเรียกโมเดลได้ 4 ค่าย: Claude / GPT / Gemini / DeepSeek จากเมนูเดียว
+- สลับเรียกโมเดลได้ 5 ค่าย: Claude / GPT / Gemini / DeepSeek / Qwen จากเมนูเดียว
 - คำนวณค่าใช้จ่ายเป็นเงิน USD + THB จาก token จริงที่แต่ละค่ายใช้
 - **ตัดจบทันทีห้ามเกิน limit** — เช็คงบประมาณ "ก่อน" ยิงไปจริงเสมอ (hard cutoff แบบ pre-flight)
 - จำกัด request/นาที ต่อ API key
@@ -27,6 +27,8 @@ ANTHROPIC_API_KEY=sk-ant-...   # https://console.anthropic.com
 OPENAI_API_KEY=sk-...          # https://platform.openai.com/api-keys
 GOOGLE_API_KEY=AIza...         # https://aistudio.google.com/apikey
 DEEPSEEK_API_KEY=sk-...        # https://platform.deepseek.com/api_keys
+QWEN_API_KEY=sk-...            # https://bailian.console.aliyun.com/
+# QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 ADMIN_KEY=ตั้งรหัสลับของคุณเอง
 ```
 

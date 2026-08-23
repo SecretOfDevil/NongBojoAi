@@ -5,7 +5,7 @@ const { getProvider } = require("../config/pricing");
 
 /**
  * เรียกโมเดลของ provider ที่เลือก ด้วย interface กลางเดียวกันทุกค่าย
- * @param {string} provider - 'anthropic' | 'openai' | 'gemini' | 'deepseek'
+ * @param {string} provider - 'anthropic' | 'openai' | 'gemini' | 'deepseek' | 'qwen'
  * @param {string} model
  * @param {Array} history - universal message history [{role, content:[{type,...}]}]
  * @param {{system?:string, maxTokens:number}} opts
@@ -45,6 +45,14 @@ async function callProvider(provider, model, history, opts) {
       return openaiCompatible.call(
         "https://api.groq.com/openai/v1",
         process.env.GROQ_API_KEY,
+        model,
+        history,
+        opts
+      );
+    case "qwen":
+      return openaiCompatible.call(
+        process.env.QWEN_BASE_URL || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        process.env.QWEN_API_KEY,
         model,
         history,
         opts
