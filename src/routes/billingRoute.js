@@ -1,7 +1,7 @@
 const express = require("express");
 const { requireApiKey } = require("../middleware/auth");
 const { PROVIDERS, getPricing, getModelTier } = require("../config/pricing");
-const { createPurchaseOrder, submitPaymentSlip, logAuditEvent } = require("../utils/db");
+const { createPurchaseOrder, submitPaymentSlip, logAuditEvent, getProfileByApiKey, updateProfile, verifyPassword, getUser } = require("../utils/db");
 const QRCode = require("qrcode");
 const generatePromptPayPayload = require("promptpay-qr");
 const multer = require("multer");
@@ -10,7 +10,8 @@ const MARKUP = 2;
 const USD_TO_THB = Number(process.env.USD_TO_THB || 36.5);
 const slipUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (req,file,cb) => cb(null, file.mimetype.startsWith("image/")) });
 const tierFor = getModelTier;
-router.get("/profile", requireApiKey, (req,res) => res.json({ name:req.keyRecord.name, tier:req.keyRecord.tier, tokenBalance:req.keyRecord.tokenBalance, tokenPlanLimit:req.keyRecord.tokenPlanLimit, purchasedModels:req.keyRecord.purchasedModels, markupPercent:100, plans:{ plus:{priceThb:299,chatPerMonth:100}, max:{priceThb:499,chatPerMonth:400} } }));
+router.get("/profile", requireApiKey, async (req,res,next) => { try { const user=await getProfileByApiKey(req.apiKey); res.json({ name:req.keyRecord.name, username:user?.username, email:user?.email || null, tier:req.keyRecord.tier, tokenBalance:req.keyRecord.tokenBalance, tokenPlanLimit:req.keyRecord.tokenPlanLimit, purchasedModels:req.keyRecord.purchasedModels, markupPercent:100, plans:{ plus:{priceThb:299,chatPerMonth:100}, max:{priceThb:499,chatPerMonth:400} } }); } catch(e){next(e)} });
+router.patch("/profile", requireApiKey, async (req,res,next) => { try { const { email, currentPassword, newPassword, newPasswordConfirm }=req.body||{}; const user=await getProfileByApiKey(req.apiKey); if(!user)return res.status(404).json({error:"ไม่พบ profile"}); if(email!==undefined && (typeof email!=="string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())))return res.status(400).json({error:"กรุณาใส่ email ที่ถูกต้อง"}); if(newPassword && newPassword.length<8)return res.status(400).json({error:"password ใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร"}); if(newPassword!==newPasswordConfirm)return res.status(400).json({error:"รหัสผ่านใหม่สองช่องไม่ตรงกัน"}); const storedUser=await getUser(user.username); if(newPassword && !verifyPassword(currentPassword||"", storedUser.salt, storedUser.password_hash))return res.status(403).json({error:"รหัสผ่านปัจจุบันไม่ถูกต้อง"}); const updated=await updateProfile(req.apiKey,{email:email===undefined?undefined:email.trim().toLowerCase(),password:newPassword}); res.json({profile:updated}); } catch(e){ if(e.code==='23505') return res.status(409).json({error:"email นี้ถูกใช้แล้ว"}); next(e); } });
 router.get("/catalog", requireApiKey, (req,res) => res.json({ markupPercent:20, providers: Object.fromEntries(Object.entries(PROVIDERS).map(([p,c]) => [p,{label:c.label,models:Object.entries(c.models).map(([id,m])=>({id,label:m.label,input:m.input,output:m.output,tier:tierFor(p,id)}))}])) }));
 router.post("/checkout", requireApiKey, async (req,res,next) => { try {
   const { provider, model, inputTokens=0, outputTokens=0, tier } = req.body || {};

@@ -71,10 +71,18 @@
       <label>Username</label>
       <input type="text" id="username" autocomplete="username" spellcheck="false" required />
     </div>
+    <div class="field" id="emailField" style="display:none;">
+      <label>Email</label>
+      <input type="email" id="email" autocomplete="email" spellcheck="false" />
+    </div>
     <div class="field">
       <label>Password</label>
       <input type="password" id="password" autocomplete="current-password" required />
       <div class="hint" id="pwHint" style="display:none;">อย่างน้อย 8 ตัวอักษร</div>
+    </div>
+    <div class="field" id="passwordConfirmField" style="display:none;">
+      <label>ยืนยัน Password</label>
+      <input type="password" id="passwordConfirm" autocomplete="new-password" />
     </div>
     <div class="terms" id="termsBox"><b style="color:#ECE9E1">ข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัว</b><p><b>1. การให้บริการและรูปแบบสมาชิก</b><br>Free Tier ให้สิทธิ์ใช้โมเดลพื้นฐานโดยไม่มีค่าใช้จ่าย ภายใต้ rate limit, ขนาดข้อความ และความพร้อมของระบบ ส่วน Plus และ Max ให้เข้าถึงโมเดลระดับสูงตาม tier และเครดิต Token ที่มี ระบบคำนวณและหักเครดิตตาม input/output token และอัตราของโมเดลที่เลือก</p><p><b>2. ข้อมูลบัญชีและประวัติการสนทนา</b><br>ระบบจัดเก็บ username, ข้อมูลการยืนยันตัวตน, API key ภายใน, ประวัติแชท, ข้อมูลการใช้งาน และบันทึกความปลอดภัย เท่าที่จำเป็นต่อการให้บริการ การป้องกันการใช้งานผิดปกติ การแก้ไขปัญหา และการแสดงประวัติย้อนหลังแก่บัญชีของคุณ</p><p><b>3. ความรับผิดชอบของผู้ใช้</b><br>ห้ามใช้บริการเพื่อการละเมิดสิทธิ์ผู้อื่น การโจมตีระบบ การส่งมัลแวร์ การหลอกลวง หรือการนำเนื้อหาที่ได้ไปใช้โดยฝ่าฝืนกฎหมายและเงื่อนไขของผู้ให้บริการโมเดล ระบบอาจจำกัด ระงับ หรือปิดบัญชีเมื่อพบการใช้งานที่เสี่ยงหรือผิดเงื่อนไข</p><p><b>4. ข้อมูลและความเป็นส่วนตัว</b><br>อย่าส่งรหัสผ่าน ข้อมูลบัตร ข้อมูลสุขภาพ หรือข้อมูลลับที่ไม่ควรเปิดเผยเข้าในบทสนทนา ผู้ให้บริการโมเดลภายนอกอาจประมวลผลข้อความตามนโยบายของตน ระบบใช้ข้อมูลเชิงสถิติที่ลดการระบุตัวตนเพื่อปรับปรุงประสิทธิภาพได้</p><p><b>5. การชำระเงินและเครดิต</b><br>การซื้อ token หรือการเปลี่ยน tier จะมีผลเมื่อระบบยืนยันการชำระเงินเท่านั้น QR ในรุ่นทดสอบอาจเป็นเพียง QR จำลองและไม่ถือเป็นการชำระเงินจริง ราคาและสิทธิ์อาจมีการปรับปรุงโดยแจ้งผ่านระบบ</p><p><b>6. ข้อจำกัดความรับผิด</b><br>คำตอบจาก AI อาจคลาดเคลื่อน ไม่ใช่คำแนะนำทางกฎหมาย การแพทย์ การเงิน หรือวิชาชีพ ผู้ใช้ต้องตรวจสอบก่อนนำไปตัดสินใจหรือเผยแพร่</p><p>การกดสมัครสมาชิกหมายถึงคุณยืนยันว่ามีสิทธิ์ใช้งานบริการและยอมรับเงื่อนไขฉบับนี้</p></div>
     <div class="consent" id="consentBox"><label><input type="checkbox" id="termsAccepted"> <span><b>ฉันได้อ่านและยอมรับเงื่อนไขการให้บริการและนโยบายความเป็นส่วนตัว</b> (จำเป็น)</span></label><label><input type="checkbox" id="marketingConsent"> <span>ฉันยินยอมให้ใช้ข้อมูลความสนใจแบบไม่ระบุตัวตนเพื่อข้อเสนอ/โฆษณา (สมัครใจ และ opt-out ได้ภายหลัง)</span></label></div>
@@ -99,6 +107,8 @@ function setMode(newMode) {
   tabLogin.classList.toggle('active', mode === 'login');
   tabRegister.classList.toggle('active', mode === 'register');
   submitBtn.textContent = mode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก';
+  document.getElementById('emailField').style.display = mode === 'register' ? 'block' : 'none';
+  document.getElementById('passwordConfirmField').style.display = mode === 'register' ? 'block' : 'none';
   pwHint.style.display = mode === 'register' ? 'block' : 'none';
   document.getElementById('termsBox').classList.toggle('show', mode === 'register'); document.getElementById('consentBox').classList.toggle('show', mode === 'register'); document.getElementById('declineBtn').classList.toggle('show', mode === 'register');
   passwordInput.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
@@ -129,7 +139,7 @@ form.addEventListener('submit', async (e) => {
     const res = await fetch(`/auth/${mode === 'login' ? 'login' : 'register'}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, termsAccepted: document.getElementById('termsAccepted').checked, marketingConsent: document.getElementById('marketingConsent').checked }),
+      body: JSON.stringify({ username, email: document.getElementById('email').value.trim(), password, passwordConfirm: document.getElementById('passwordConfirm').value, termsAccepted: document.getElementById('termsAccepted').checked, marketingConsent: document.getElementById('marketingConsent').checked }),
     });
     const data = await res.json();
 

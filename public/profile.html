@@ -12,7 +12,7 @@
     .hero { display: flex; gap: 14px; align-items: center; margin: 24px 0; }
     .avatar { width: 58px; height: 58px; border-radius: 18px; background: #292d35; color: #f0a93b; display: grid; place-items: center; font: 700 25px monospace; }
     .muted { color: #8a8f9c; }
-    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+    .cards { display: none; }
     @media (max-width: 700px) { .cards { grid-template-columns: 1fr; } }
     .card { background: #1b1e25; border: 1px solid #2b2f3a; border-radius: 16px; padding: 20px; min-height: 320px; display: flex; flex-direction: column; }
     .current { border-color: #f0a93b; box-shadow: 0 0 0 1px #705019; }
@@ -25,6 +25,9 @@
     .wallet-head { display:flex; justify-content:space-between; gap:12px; font-family:monospace; font-size:12px; }
     .wallet-track { height:10px; margin-top:10px; background:#30353f; border-radius:999px; overflow:hidden; }
     .wallet-fill { height:100%; width:0; background:#5fbf87; transition:width .3s ease; }
+    .profile-form,.usage-limit { max-width:520px; background:#1b1e25; border:1px solid #2b2f3a; border-radius:12px; padding:16px; margin-bottom:20px; }
+    .profile-form input { display:block; width:100%; margin:7px 0 12px; padding:10px; background:#20232b; border:1px solid #2b2f3a; color:#ece9e1; border-radius:6px; }
+    .usage-track { height:10px; background:#30353f; border-radius:99px; overflow:hidden; margin:7px 0 14px; }.usage-fill { height:100%; width:0; background:#f0a93b; }
     button { background: #f0a93b; border: 0; border-radius: 8px; padding: 11px 14px; font-weight: 800; cursor: pointer; }
     button:disabled { background: #30353f; color: #9ca3b0; cursor: default; }
     #payment { display: none; margin-top: 20px; padding: 18px; background: #f8f8f5; color: #111; border-radius: 14px; max-width: 340px; }
@@ -44,6 +47,8 @@
       </div>
     </section>
     <section class="wallet" id="wallet"><div class="wallet-head"><b>เครดิต token คงเหลือ</b><span id="walletText"></span></div><div class="wallet-track"><div class="wallet-fill" id="walletFill"></div></div><p class="muted" id="walletNotice"></p><a href="/usage.html">เติม token ตาม model</a></section>
+    <section class="profile-form"><h2>ข้อมูลบัญชี</h2><p class="muted" id="accountNotice"></p><label>Email</label><input id="emailInput" type="email" placeholder="กรอก email"><h3>เปลี่ยน password</h3><input id="currentPassword" type="password" placeholder="Password ปัจจุบัน"><input id="newPassword" type="password" placeholder="Password ใหม่ อย่างน้อย 8 ตัวอักษร"><input id="newPasswordConfirm" type="password" placeholder="ยืนยัน Password ใหม่"><button id="saveProfile" type="button">บันทึกข้อมูล</button><div id="profileStatus" class="muted"></div></section>
+    <section class="usage-limit"><h2>Usage limit</h2><div>Daily: <span id="dailyUsage">กำลังโหลด...</span></div><div class="usage-track"><div class="usage-fill" id="dailyFill"></div></div><div>Monthly: <span id="monthlyUsage">กำลังโหลด...</span></div><div class="usage-track"><div class="usage-fill" id="monthlyFill"></div></div></section>
     <div class="cards">
       <section class="card" data-tier="free">
         <span class="tag">FREE</span>
@@ -67,7 +72,7 @@
         <button data-tier="max">Choose max</button>
       </section>
     </div>
-    <p><a href="/payment.html">ไปหน้าชำระเงินและเติม model</a></p>
+    <p><a href="/plans.html">ดู Plans และอัปเกรด plan</a> · <a href="/payment.html">เติม model ผ่าน Top-up</a></p>
   </main>
   <script>
     const apiKey = localStorage.getItem('claudeProxyApiKey');
@@ -89,6 +94,8 @@
       nameElement.textContent = displayName;
       avatarElement.textContent = displayName[0].toUpperCase();
       statusElement.textContent = `Current plan: ${currentTier.toUpperCase()}`;
+      document.getElementById('emailInput').value = profile.email || '';
+      document.getElementById('accountNotice').textContent = profile.email ? '' : 'บัญชีเดิมยังไม่มี email กรุณากรอก email เพื่อให้ข้อมูลบัญชีครบถ้วน';
       const balance = Number(profile.tokenBalance || 0);
       const limit = Number(profile.tokenPlanLimit || 0);
       if (limit > 0) {
@@ -104,6 +111,28 @@
         button.disabled = active;
         button.textContent = active ? 'Current plan' : `Choose ${card.dataset.tier}`;
       });
+    }
+
+    document.getElementById('saveProfile').onclick = async () => {
+      const status = document.getElementById('profileStatus');
+      const body = { email: document.getElementById('emailInput').value.trim(), currentPassword: document.getElementById('currentPassword').value, newPassword: document.getElementById('newPassword').value, newPasswordConfirm: document.getElementById('newPasswordConfirm').value };
+      if (body.newPassword && !body.currentPassword) { status.textContent = 'กรุณาใส่ password ปัจจุบัน'; return; }
+      const response = await fetch('/v1/profile', { method: 'PATCH', headers, body: JSON.stringify(body) });
+      const result = await response.json();
+      status.textContent = response.ok ? 'บันทึกข้อมูลแล้ว' : (result.error || 'บันทึกไม่สำเร็จ');
+      if (response.ok) { document.getElementById('currentPassword').value = ''; document.getElementById('newPassword').value = ''; document.getElementById('newPasswordConfirm').value = ''; document.getElementById('accountNotice').textContent = ''; }
+    };
+
+    async function loadUsageLimit() {
+      const response = await fetch('/v1/usage', { headers: { 'x-api-key': apiKey } });
+      if (!response.ok) return;
+      const usage = await response.json();
+      const dailyPct = usage.limits.dailyBudgetUSD ? Math.min(100, usage.today.usedUSD / usage.limits.dailyBudgetUSD * 100) : 0;
+      const monthlyPct = usage.limits.monthlyBudgetUSD ? Math.min(100, usage.thisMonth.usedUSD / usage.limits.monthlyBudgetUSD * 100) : 0;
+      document.getElementById('dailyUsage').textContent = `$${usage.today.usedUSD} / $${usage.limits.dailyBudgetUSD}`;
+      document.getElementById('monthlyUsage').textContent = `$${usage.thisMonth.usedUSD} / $${usage.limits.monthlyBudgetUSD}`;
+      document.getElementById('dailyFill').style.width = `${dailyPct}%`;
+      document.getElementById('monthlyFill').style.width = `${monthlyPct}%`;
     }
 
     async function chooseTier(tier) {
@@ -127,7 +156,7 @@
     }
 
     document.querySelectorAll('button[data-tier]').forEach((button) => { button.onclick = () => chooseTier(button.dataset.tier); });
-    init().catch((error) => { statusElement.textContent = error.message || 'Unable to load account data.'; });
+    init().then(loadUsageLimit).catch((error) => { statusElement.textContent = error.message || 'Unable to load account data.'; });
   </script>
 </body>
 </html>

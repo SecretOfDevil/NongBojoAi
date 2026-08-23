@@ -14,6 +14,7 @@ const authRateLimiter = rateLimit({
 });
 
 const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,32}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validateCredentials(username, password) {
   if (typeof username !== "string" || !USERNAME_RE.test(username)) {
@@ -28,13 +29,15 @@ function validateCredentials(username, password) {
 // POST /auth/register  { username, password, name? }
 // สร้างบัญชีใหม่ พร้อมสร้าง x-api-key ให้อัตโนมัติ (ใช้ยิง /v1/chat ได้ทันที)
 router.post("/register", authRateLimiter, async (req, res) => {
-  const { username, password, name, marketingConsent, termsAccepted } = req.body || {};
+  const { username, email, password, passwordConfirm, name, marketingConsent, termsAccepted } = req.body || {};
   const validationError = validateCredentials(username, password);
   if (validationError) return res.status(400).json({ error: validationError });
+  if (typeof email !== "string" || !EMAIL_RE.test(email.trim())) return res.status(400).json({ error: "กรุณาใส่ email ที่ถูกต้อง" });
+  if (password !== passwordConfirm) return res.status(400).json({ error: "รหัสผ่านสองช่องไม่ตรงกัน" });
   if (!termsAccepted) return res.status(400).json({ error: "ต้องยอมรับข้อตกลงก่อนสมัครสมาชิก" });
 
   try {
-    const { apiKey } = await createUser(username, password, { name, marketingConsent: Boolean(marketingConsent) });
+    const { apiKey } = await createUser(username, password, { name, email: email.trim().toLowerCase(), marketingConsent: Boolean(marketingConsent) });
     res.status(201).json({
       username,
       apiKey,
@@ -45,6 +48,7 @@ router.post("/register", authRateLimiter, async (req, res) => {
     if (e.code === "USERNAME_TAKEN") {
       return res.status(409).json({ error: e.message, code: "USERNAME_TAKEN" });
     }
+    if (e.code === "23505") return res.status(409).json({ error: "email นี้ถูกใช้แล้ว", code: "EMAIL_TAKEN" });
     console.error(e);
     await logAuditEvent({ eventType: "registration_failed", severity: "error", username, ipAddress: req.ip, method: req.method, path: req.path, statusCode: 500 });
     res.status(500).json({ error: "สมัครไม่สำเร็จ กรุณาลองใหม่" });

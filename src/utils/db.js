@@ -124,6 +124,8 @@ async function initDb() {
     ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS token_plan_limit BIGINT NOT NULL DEFAULT 0;
     ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS token_plan_started_at TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users (LOWER(email)) WHERE email IS NOT NULL AND email <> '';
   `);
 
   for (const [provider, config] of Object.entries(PROVIDERS)) {
@@ -566,8 +568,8 @@ async function createUser(username, password, opts = {}) {
       [apiKey, opts.name || username, SIGNUP_DAILY_BUDGET_USD, SIGNUP_MONTHLY_BUDGET_USD, SIGNUP_REQUESTS_PER_MINUTE]
     );
     await client.query(
-      `INSERT INTO users (username, password_hash, salt, api_key, marketing_consent) VALUES ($1, $2, $3, $4, $5)`,
-      [username, hash, salt, apiKey, Boolean(opts.marketingConsent)]
+      `INSERT INTO users (username, password_hash, salt, api_key, marketing_consent, email) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [username, hash, salt, apiKey, Boolean(opts.marketingConsent), opts.email]
     );
     await client.query("COMMIT");
   } catch (e) {
@@ -576,7 +578,7 @@ async function createUser(username, password, opts = {}) {
   } finally {
     client.release();
   }
-  return { username, apiKey };
+  return { username, email: opts.email, apiKey };
 }
 
 async function authenticateUser(username, password) {
@@ -584,6 +586,28 @@ async function authenticateUser(username, password) {
   if (!user) return null;
   if (!verifyPassword(password, user.salt, user.password_hash)) return null;
   return { username: user.username, apiKey: user.api_key };
+}
+
+async function getProfileByApiKey(apiKey) {
+  const { rows } = await q("SELECT u.username,u.email FROM users u WHERE u.api_key=$1", [apiKey]);
+  return rows[0] || null;
+}
+
+async function updateProfile(apiKey, patch) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query("SELECT * FROM users WHERE api_key=$1 FOR UPDATE", [apiKey]);
+    const user = rows[0];
+    if (!user) { await client.query("ROLLBACK"); return null; }
+    if (patch.email !== undefined) await client.query("UPDATE users SET email=$2 WHERE api_key=$1", [apiKey, patch.email || null]);
+    if (patch.password) {
+      const { salt, hash } = hashPassword(patch.password);
+      await client.query("UPDATE users SET password_hash=$2,salt=$3 WHERE api_key=$1", [apiKey, hash, salt]);
+    }
+    await client.query("COMMIT");
+    return { username: user.username, email: patch.email !== undefined ? (patch.email || null) : user.email };
+  } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
 }
 
 // ===== Legacy shims (ส่ง error ถ้า code เก่ายังเรียก raw readDb/writeDb อยู่) =====
@@ -597,5 +621,5 @@ module.exports = {
   recordUsage, consumeTokens, refundTokens, sumUsageSince,
   getAllLogs, logAuditEvent, getAuditLogs, createPurchaseOrder, submitPaymentSlip, listPaymentApprovals, getPaymentSlip, reviewPaymentOrder, getModelStatuses, setModelStatus, isModelOnline, getUsageStats, updateOwnLimits,
   createConversation, getConversation, listConversations, appendMessage, deleteConversation,
-  getUser, createUser, authenticateUser,
+  getUser, createUser, authenticateUser, getProfileByApiKey, updateProfile, verifyPassword,
 };
